@@ -1,0 +1,46 @@
+# Зависимости и временные файлы
+/.bundle/
+/vendor/bundle
+/lib/bundler/man/
+
+# Временные файлы Ruby
+*.gem
+*.rbc
+/.config
+/coverage/
+/InstalledFiles
+/pkg/
+/spec/reports/
+/spec/examples.txt
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# YARD документация
+/doc/
+/.yardoc
+
+# Файлы IDE
+/.vscode/
+/.idea/
+*.swp
+*.swo
+
+# OS файлы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# KeySloth секреты (для тестирования)
+/secrets/
+.keyslothrc
+
+# Backup файлы
+*_backup_*
+
+# Логи
+*.log

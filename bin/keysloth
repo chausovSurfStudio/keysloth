@@ -1,0 +1,16 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/keysloth'
+require_relative '../lib/keysloth/cli'
+
+begin
+  KeySloth::CLI.start(ARGV)
+rescue KeySloth::KeySlothError => e
+  warn "Ошибка KeySloth: #{e.message}"
+  exit 1
+rescue StandardError => e
+  warn "Неожиданная ошибка: #{e.message}"
+  warn "Backtrace: #{e.backtrace.join("\n")}" if ENV['DEBUG']
+  exit 1
+end

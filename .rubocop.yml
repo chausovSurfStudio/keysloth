@@ -1,0 +1,98 @@
+require:
+  - rubocop-performance
+  - rubocop-rspec
+
+AllCops:
+  TargetRubyVersion: 2.7
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+    - 'spec/fixtures/**/*'
+
+# Настройки стиля
+
+Layout/LineLength:
+  Max: 100
+  Exclude:
+    - 'keysloth.gemspec'
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+Metrics/ClassLength:
+  Max: 150
+
+Metrics/MethodLength:
+  Max: 25
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/ModuleLength:
+  Max: 150
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+    - 'Rakefile'
+    - 'keysloth.gemspec'
+
+Metrics/AbcSize:
+  Max: 20
+  Exclude:
+    - 'spec/**/*'
+
+# Настройки документации
+
+Style/Documentation:
+  Enabled: true
+  Exclude:
+    - 'spec/**/*'
+
+Style/DocumentationMethod:
+  Enabled: true
+  RequireForNonPublicMethods: false
+
+# Настройки безопасности
+
+Security/Eval:
+  Enabled: true
+
+Security/YAMLLoad:
+  Enabled: true
+
+# Настройки производительности
+
+Performance/StringReplacement:
+  Enabled: true
+
+Performance/RedundantBlockCall:
+  Enabled: true
+
+# Настройки для RSpec
+
+RSpec/ExampleLength:
+  Max: 15
+
+RSpec/MultipleExpectations:
+  Max: 5
+
+RSpec/NestedGroups:
+  Max: 4
+
+RSpec/DescribeClass:
+  Enabled: true
+
+# Отключаем некоторые правила для большей гибкости
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+Style/GuardClause:
+  Enabled: false

@@ -1,0 +1,8 @@
+--markup markdown
+--title "KeySloth API Documentation"
+--readme README.md
+--output-dir doc
+--protected
+lib/**/*.rb
+- 
+CHANGELOG.md
