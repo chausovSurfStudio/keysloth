@@ -88,12 +88,12 @@ module KeySloth
                      config_file: config_file
                    })
 
-      # Объединяем параметры с конфигурацией (параметры имеют приоритет)
-      merged_config = config.merge(
+      # Объединяем параметры с конфигурацией (параметры имеют приоритет, nil не перетирает)
+      merged_config = config.merge({
         repo_url: repo_url,
         branch: branch,
         local_path: local_path
-      )
+      }.compact)
 
       logger.info("Начинаем получение секретов из репозитория: #{repo_url}")
 
@@ -199,12 +199,12 @@ module KeySloth
                      commit_message: commit_message
                    })
 
-      # Объединяем параметры с конфигурацией (параметры имеют приоритет)
-      merged_config = config.merge(
+      # Объединяем параметры с конфигурацией (параметры имеют приоритет, nil не перетирает)
+      merged_config = config.merge({
         repo_url: repo_url,
         branch: branch,
         local_path: local_path
-      )
+      }.compact)
 
       logger.info("Начинаем отправку секретов в репозиторий: #{repo_url}")
 

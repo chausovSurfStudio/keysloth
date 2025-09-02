@@ -35,9 +35,12 @@ module KeySloth
       @repo_url = repo_url&.to_s
       @logger = logger || Logger.new(level: :error)
       @temp_dir = nil
+      @ssh_tmp_dir = nil
+      @git_env = {}
 
       validate_repo_url!
       check_git_available!
+      prepare_git_environment
     end
 
     # Получает зашифрованные файлы из репозитория
@@ -54,14 +57,12 @@ module KeySloth
       begin
         clone_repository
         checkout_branch(branch)
+        ensure_branch_up_to_date(branch)
 
         files = collect_encrypted_files
         @logger.info("Найдено #{files.size} зашифрованных файлов")
 
         files
-      rescue Rugged::Error => e
-        @logger.error('Ошибка работы с Git репозиторием', e)
-        raise RepositoryError, "Git операция не удалась: #{e.message}"
       rescue StandardError => e
         @logger.error('Неожиданная ошибка при получении файлов', e)
         raise RepositoryError, "Не удалось получить файлы: #{e.message}"
@@ -78,10 +79,8 @@ module KeySloth
       begin
         clone_repository
         checkout_branch(branch)
-
-        # Проверяем актуальность ветки
-        check_branch_up_to_date(branch)
-      rescue Rugged::Error => e
+        ensure_branch_up_to_date(branch)
+      rescue StandardError => e
         @logger.error('Ошибка подготовки репозитория', e)
         raise RepositoryError, "Не удалось подготовить репозиторий: #{e.message}"
       end
@@ -127,23 +126,19 @@ module KeySloth
       @logger.info("Создаем коммит и отправляем в ветку: #{branch}")
 
       begin
-        # Добавляем все изменения в индекс
         add_all_changes
 
-        # Проверяем есть ли изменения
         unless has_changes?
           @logger.info('Нет изменений для коммита')
           return
         end
 
-        # Создаем коммит
+        ensure_git_user_config!
         create_commit(commit_message)
-
-        # Отправляем в удаленный репозиторий
         push_to_remote(branch)
 
         @logger.info('Изменения успешно отправлены в репозиторий')
-      rescue Rugged::Error => e
+      rescue StandardError => e
         @logger.error('Ошибка коммита или отправки', e)
         raise RepositoryError, "Не удалось отправить изменения: #{e.message}"
       end
@@ -151,11 +146,17 @@ module KeySloth
 
     # Очищает временные файлы
     def cleanup
-      return unless @temp_dir && Dir.exist?(@temp_dir)
+      if @temp_dir && Dir.exist?(@temp_dir)
+        @logger.debug("Очищаем временную директорию: #{@temp_dir}")
+        FileUtils.remove_entry(@temp_dir)
+        @temp_dir = nil
+      end
 
-      @logger.debug("Очищаем временную директорию: #{@temp_dir}")
-      FileUtils.remove_entry(@temp_dir)
-      @temp_dir = nil
+      if @ssh_tmp_dir && Dir.exist?(@ssh_tmp_dir)
+        @logger.debug("Очищаем временные SSH ключи: #{@ssh_tmp_dir}")
+        FileUtils.remove_entry(@ssh_tmp_dir)
+        @ssh_tmp_dir = nil
+      end
     end
 
     private
@@ -181,22 +182,25 @@ module KeySloth
       raise RepositoryError, 'Git не установлен или недоступен в системе' unless status.success?
     end
 
+    # Настраивает окружение Git и SSH
+    def prepare_git_environment
+      ssh_command = build_ssh_command
+      @git_env = {}
+      @git_env['GIT_SSH_COMMAND'] = ssh_command if ssh_command
+    end
+
     # Клонирует репозиторий во временную директорию
     #
     # @raise [RepositoryError] при ошибках клонирования
     def clone_repository
-      return if @repository
+      return if @temp_dir
 
       @temp_dir = Dir.mktmpdir('keysloth_repo_')
       @logger.debug("Создана временная директория: #{@temp_dir}")
 
-      credentials = create_ssh_credentials
-
-      @repository = Rugged::Repository.clone_at(
-        @repo_url,
-        @temp_dir,
-        credentials: credentials
-      )
+      depth_flag = ENV['KEYSLOTH_FULL_CLONE'].to_s.downcase == 'true' ? [] : ['--depth', '1']
+      cmd = ['git', 'clone', '--quiet'] + depth_flag + [@repo_url, @temp_dir]
+      run_git(cmd)
 
       @logger.debug('Репозиторий успешно клонирован')
     end
@@ -208,41 +212,51 @@ module KeySloth
     def checkout_branch(branch)
       @logger.debug("Переключаемся на ветку: #{branch}")
 
-      # Ищем локальную ветку
-      local_branch = @repository.branches["#{branch}"]
-
-      if local_branch
-        @repository.checkout(local_branch)
-      else
-        # Ищем удаленную ветку и создаем локальную
-        remote_branch = @repository.branches["origin/#{branch}"]
-
-        if remote_branch
-          @repository.create_branch(branch, remote_branch.target)
-          @repository.checkout(branch)
-        else
-          raise RepositoryError, "Ветка '#{branch}' не найдена в репозитории"
-        end
+      # Проверяем, существует ли локальная ветка
+      stdout, = run_git(['git', 'rev-parse', '--verify', branch], chdir: @temp_dir,
+                                                                  allow_failure: true)
+      if stdout && !stdout.strip.empty?
+        run_git(['git', 'checkout', branch], chdir: @temp_dir)
+        @logger.debug("Успешно переключились на ветку: #{branch}")
+        return
       end
 
-      @logger.debug("Успешно переключились на ветку: #{branch}")
+      # Пробуем создать локальную ветку, отслеживающую origin/<branch>
+      _, stderr, status = Open3.capture3(@git_env, 'git', 'checkout', '-b', branch, '--track',
+                                         "origin/#{branch}", chdir: @temp_dir)
+      if status.success?
+        @logger.debug("Создана и выбрана новая ветка: #{branch}")
+        return
+      end
+
+      raise RepositoryError, "Ветка '#{branch}' не найдена в репозитории: #{stderr.strip}"
     end
 
     # Проверяет актуальность локальной ветки
     #
     # @param branch [String] Имя ветки
     # @raise [RepositoryError] если ветка не актуальна
-    def check_branch_up_to_date(branch)
-      local_branch = @repository.branches[branch]
-      remote_branch = @repository.branches["origin/#{branch}"]
+    def ensure_branch_up_to_date(branch)
+      run_git(['git', 'fetch', 'origin', branch], chdir: @temp_dir)
 
-      return unless local_branch && remote_branch
+      # Пытаемся fast-forward pull
+      _, _, status = Open3.capture3(@git_env, 'git', 'pull', '--ff-only', 'origin', branch,
+                                    chdir: @temp_dir)
+      return if status.success?
 
-      if local_branch.target_id != remote_branch.target_id
+      # Если shallow-история мешает, пробуем развернуть историю
+      @logger.debug('Повторная попытка pull после развертывания истории (unshallow)')
+      _, _, fetch_status = Open3.capture3(@git_env, 'git', 'fetch', '--unshallow', chdir: @temp_dir)
+      if fetch_status.success?
+        out2, err2, st2 = Open3.capture3(@git_env, 'git', 'pull', '--ff-only', 'origin', branch,
+                                         chdir: @temp_dir)
+        return if st2.success?
+
         raise RepositoryError,
-              "Локальная ветка '#{branch}' не синхронизирована с удаленной. " \
-              'Выполните pull для получения последних изменений.'
+              "Не удалось обновить ветку fast-forward: #{(err2.empty? ? out2 : err2).strip}"
       end
+
+      raise RepositoryError, 'Не удалось выполнить git pull --ff-only'
     end
 
     # Собирает все зашифрованные файлы из репозитория
@@ -251,13 +265,13 @@ module KeySloth
     def collect_encrypted_files
       files = []
 
-      @repository.index.each do |entry|
-        next unless entry[:path].end_with?('.enc')
+      Dir.glob('**/*.enc', base: @temp_dir).sort.each do |relative_path|
+        full_path = File.join(@temp_dir, relative_path)
+        next unless File.file?(full_path)
 
-        blob = @repository.lookup(entry[:oid])
         files << {
-          name: entry[:path],
-          content: blob.content
+          name: relative_path,
+          content: File.read(full_path)
         }
       end
 
@@ -276,33 +290,22 @@ module KeySloth
 
     # Добавляет все изменения в индекс Git
     def add_all_changes
-      @repository.index.add_all
-      @repository.index.write
+      run_git(['git', 'add', '-A'], chdir: @temp_dir)
     end
 
     # Проверяет наличие изменений
     #
     # @return [Boolean] true если есть изменения
     def has_changes?
-      !@repository.diff_workdir_to_index.deltas.empty? ||
-        !@repository.diff_index_to_tree(@repository.head.target.tree).deltas.empty?
+      stdout, = run_git(['git', 'status', '--porcelain'], chdir: @temp_dir)
+      !stdout.strip.empty?
     end
 
     # Создает коммит
     #
     # @param message [String] Сообщение коммита
     def create_commit(message)
-      signature = create_commit_signature
-
-      Rugged::Commit.create(
-        @repository,
-        author: signature,
-        committer: signature,
-        message: message,
-        parents: [@repository.head.target],
-        tree: @repository.index.write_tree(@repository)
-      )
-
+      run_git(['git', 'commit', '-m', message], chdir: @temp_dir)
       @logger.debug("Создан коммит: #{message}")
     end
 
@@ -310,95 +313,82 @@ module KeySloth
     #
     # @param branch [String] Имя ветки
     def push_to_remote(branch)
-      credentials = create_ssh_credentials
-
-      @repository.push('origin', ["refs/heads/#{branch}"], credentials: credentials)
+      run_git(['git', 'push', 'origin', branch], chdir: @temp_dir)
       @logger.debug("Изменения отправлены в origin/#{branch}")
     end
 
-    # Создает SSH credentials для аутентификации
+    # Формирует команду SSH для GIT_SSH_COMMAND в зависимости от окружения
     #
-    # @return [Rugged::Credentials::SshKey] SSH ключи
-    def create_ssh_credentials
-      ssh_key_path = File.expand_path('~/.ssh/id_rsa')
-      ssh_pub_key_path = File.expand_path('~/.ssh/id_rsa.pub')
+    # Приоритет источников ключей: KEYSLOTH_SSH_KEY_PATH → SSH_PRIVATE_KEY/SSH_PUBLIC_KEY → системные ключи
+    # Возвращает nil, если следует использовать системный SSH без явного указания ключа
+    def build_ssh_command
+      explicit_key_path = ENV.fetch('KEYSLOTH_SSH_KEY_PATH', nil)
+      if explicit_key_path && !explicit_key_path.empty?
+        return %(ssh -i #{explicit_key_path} -o IdentitiesOnly=yes)
+      end
 
-      # Проверяем наличие SSH ключей в переменных окружения (для CI/CD)
       if ENV['SSH_PRIVATE_KEY']
-        # В CI/CD окружении используем ключи из переменных окружения
-        return create_ssh_key_from_env
+        @ssh_tmp_dir = Dir.mktmpdir('keysloth_ssh_')
+        private_key_path = File.join(@ssh_tmp_dir, 'id_rsa')
+        public_key_path = File.join(@ssh_tmp_dir, 'id_rsa.pub')
+
+        File.write(private_key_path, ENV['SSH_PRIVATE_KEY'])
+        File.chmod(0o600, private_key_path)
+        File.write(public_key_path, ENV['SSH_PUBLIC_KEY']) if ENV['SSH_PUBLIC_KEY']
+
+        # В CI отключаем проверку хостов (опционально)
+        return %(ssh -i #{private_key_path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
       end
 
-      # Локальная работа - используем стандартные SSH ключи
-      unless File.exist?(ssh_key_path)
-        raise AuthenticationError, "SSH ключ не найден: #{ssh_key_path}"
-      end
-
-      Rugged::Credentials::SshKey.new(
-        username: 'git',
-        publickey: ssh_pub_key_path,
-        privatekey: ssh_key_path
-      )
+      # Системные ключи/ssh-agent — используем настройки по умолчанию
+      nil
     end
 
-    # Создает SSH ключи из переменных окружения для CI/CD
-    #
-    # Используется в автоматизированных средах где SSH ключи передаются
-    # через переменные окружения SSH_PRIVATE_KEY и SSH_PUBLIC_KEY.
-    # Создает временные файлы для ключей с правильными правами доступа.
-    #
-    # @return [Rugged::Credentials::SshKey] Объект SSH ключей для аутентификации
-    # @raise [AuthenticationError] если SSH_PRIVATE_KEY не установлен
-    # @example Использование в CI/CD
-    #   ENV['SSH_PRIVATE_KEY'] = File.read('~/.ssh/id_rsa')
-    #   ENV['SSH_PUBLIC_KEY'] = File.read('~/.ssh/id_rsa.pub')
-    #   credentials = create_ssh_key_from_env
-    def create_ssh_key_from_env
-      private_key = ENV.fetch('SSH_PRIVATE_KEY', nil)
-      public_key = ENV.fetch('SSH_PUBLIC_KEY', nil)
+    # Проверяет, что git настроен с именем и email автора коммита
+    def ensure_git_user_config!
+      name_out, = run_git(['git', 'config', '--get', 'user.name'], chdir: @temp_dir,
+                                                                   allow_failure: true)
+      email_out, = run_git(['git', 'config', '--get', 'user.email'], chdir: @temp_dir,
+                                                                     allow_failure: true)
 
-      raise AuthenticationError, 'SSH_PRIVATE_KEY не установлен' unless private_key
-
-      # Создаем временные файлы для ключей
-      key_dir = Dir.mktmpdir('keysloth_ssh_')
-      private_key_path = File.join(key_dir, 'id_rsa')
-      public_key_path = File.join(key_dir, 'id_rsa.pub')
-
-      File.write(private_key_path, private_key)
-      File.chmod(0o600, private_key_path)
-
-      if public_key
-        File.write(public_key_path, public_key)
-      else
-        # Если публичный ключ не предоставлен, генерируем его из приватного
-        public_key_path = nil
+      if name_out.to_s.strip.empty? || email_out.to_s.strip.empty?
+        raise RepositoryError,
+              'Требуются глобальные настройки Git: user.name и user.email. ' \
+              'Настройте их командой: git config --global user.name "Your Name"; ' \
+              'git config --global user.email "you@example.com"'
       end
-
-      Rugged::Credentials::SshKey.new(
-        username: 'git',
-        publickey: public_key_path,
-        privatekey: private_key_path
-      )
     end
 
-    # Создает подпись для коммита с автора информацией
-    #
-    # Получает имя и email автора коммита из переменных окружения Git
-    # или использует значения по умолчанию для KeySloth. Поддерживает
-    # как GIT_AUTHOR_* так и GIT_COMMITTER_* переменные.
-    #
-    # @return [Rugged::Signature] Подпись с именем, email и временной меткой
-    # @example Использование с переменными окружения
-    #   ENV['GIT_AUTHOR_NAME'] = 'John Doe'
-    #   ENV['GIT_AUTHOR_EMAIL'] = 'john@example.com'
-    #   signature = create_commit_signature
-    # @example Использование значений по умолчанию
-    #   signature = create_commit_signature #=> name: 'KeySloth', email: 'keysloth@example.com'
+    # Унифицированный запуск git-команд с логированием и обработкой ошибок
+    # Возвращает [stdout, stderr]
+    def run_git(cmd, chdir: nil, allow_failure: false)
+      start_msg = cmd.is_a?(Array) ? cmd.join(' ') : cmd.to_s
+      @logger.debug("Выполняем команду: #{start_msg}")
+
+      options = {}
+      options[:chdir] = chdir if chdir
+
+      stdout, stderr, status = if cmd.is_a?(Array)
+                                 Open3.capture3(@git_env, *cmd, **options)
+                               else
+                                 Open3.capture3(@git_env, cmd, **options)
+                               end
+
+      return [stdout, stderr] if status.success?
+
+      exit_code = status.respond_to?(:exitstatus) ? status.exitstatus : 'unknown'
+      @logger.debug("Код выхода: #{exit_code}\nSTDERR: #{stderr.strip}")
+      return [stdout, stderr] if allow_failure
+
+      base_msg = (stderr.strip.empty? ? stdout.strip : stderr.strip)
+      advice = 'Совет: проверьте доступ к репозиторию, корректность ветки и SSH-настройки.'
+      raise RepositoryError, [base_msg, advice].reject(&:empty?).join("\n")
+    end
+
+    # Метод сохранен для обратной совместимости интерфейса (не используется)
     def create_commit_signature
-      name = ENV['GIT_AUTHOR_NAME'] || ENV['GIT_COMMITTER_NAME'] || 'KeySloth'
-      email = ENV['GIT_AUTHOR_EMAIL'] || ENV['GIT_COMMITTER_EMAIL'] || 'keysloth@example.com'
-
-      Rugged::Signature.new(name, email, Time.now)
+      # Используем конфигурацию git, поэтому сигнатура не формируется вручную
+      nil
     end
   end
 end

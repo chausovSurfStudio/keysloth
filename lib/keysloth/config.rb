@@ -108,9 +108,7 @@ module KeySloth
     def symbolize_keys(hash)
       return {} unless hash.is_a?(Hash)
 
-      hash.each_with_object({}) do |(key, value), result|
-        result[key.to_sym] = value
-      end
+      hash.transform_keys(&:to_sym)
     end
 
     # Определяет путь к файлу конфигурации

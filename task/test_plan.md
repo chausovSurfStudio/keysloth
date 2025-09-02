@@ -35,20 +35,19 @@ bundle exec rake rubocop
 ## 3. Сборка и локальная установка gem
 ```bash
 gem build keysloth.gemspec
-gem install ./keysloth-0.1.0.gem
+gem install ./keysloth-0.1.1.gem
 
 # Проверка установки и базовых команд
 keysloth version
 keysloth help
 ```
 
-### Важно про Rugged (доступ к Git через libgit2)
-В текущей версии используется API `Rugged` в `git_manager`. Чтобы избежать ошибки `uninitialized constant Rugged`, добавьте предзагрузку:
+### Требования к Git/SSH
+Инструмент использует системный Git и SSH. Убедитесь, что установлены и доступны из PATH:
 ```bash
-gem install rugged
-export RUBYOPT="-r rugged"
+git --version
+ssh -V
 ```
-(Это временная предзагрузка библиотеки без изменения кода.)
 
 ## 4. Подготовка тестового удалённого репозитория (SSH)
 Вариант A (GitHub через веб-интерфейс):
@@ -79,7 +78,7 @@ mkdir -p ~/tmp/keysloth-playground
 cd ~/tmp/keysloth-playground
 
 # Инициализация проекта под KeySloth (создаст .keyslothrc, директорию секретов, обновит .gitignore)
-keysloth init -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -b main -d ./secrets
+keysloth init -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -b main -d ./secrets
 
 # Проверим, что создалось
 cat .keyslothrc
@@ -120,8 +119,8 @@ echo '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"></plist>' > sec
 ```bash
 export SECRET_PASSWORD="SOME_STRONG_PASSWORD_16+"
 
-keysloth push \
-  -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git \
+keysloth push -v \
+  -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git \
   -p "$SECRET_PASSWORD" \
   -b main \
   -d ./secrets \
@@ -138,7 +137,7 @@ keysloth push \
 rm -rf ./secrets
 
 keysloth pull \
-  -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git \
+  -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git \
   -p "$SECRET_PASSWORD" \
   -b main \
   -d ./secrets
@@ -182,32 +181,32 @@ keysloth validate -d ./secrets
 ## 12. Негативные сценарии (проверка ошибок)
 - Неверный пароль при pull:
   ```bash
-  keysloth pull -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p WRONGPASS -b main -d ./secrets
+  keysloth pull -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -p WRONGPASS -b main -d ./secrets
   # Ожидаемо: ошибка дешифровки, ненулевой код выхода
   ```
 - Несуществующая ветка:
   ```bash
-  keysloth pull -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p "$SECRET_PASSWORD" -b no_such_branch -d ./secrets
+  keysloth pull -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -p "$SECRET_PASSWORD" -b no_such_branch -d ./secrets
   # Ожидаемо: ошибка «ветка не найдена»/«не синхронизирована»
   ```
 - Пустая/отсутствующая директория при push:
   ```bash
-  keysloth push -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p "$SECRET_PASSWORD" -d ./nope
+  keysloth push -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -p "$SECRET_PASSWORD" -d ./nope
   # Ожидаемо: ошибка файловой системы
   ```
 - Проблемы SSH (нет доступа):
   ```bash
-  keysloth pull -r git@github.com:<YOUR_USER>/private_no_access.git -p "$SECRET_PASSWORD"
+  keysloth pull -r git@github.com:chausovSurfStudio/private_no_access.git -p "$SECRET_PASSWORD"
   # Ожидаемо: ошибка аутентификации/доступа
   ```
 
 ## 13. Глобальные флаги логирования
 ```bash
 # Подробный вывод
-keysloth pull -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p "$SECRET_PASSWORD" --verbose
+keysloth pull -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -p "$SECRET_PASSWORD" --verbose
 
 # Тихий режим (только ошибки)
-keysloth pull -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p "$SECRET_PASSWORD" --quiet
+keysloth pull -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -p "$SECRET_PASSWORD" --quiet
 ```
 
 ## 14. Работа через .keyslothrc (минимум аргументов)
@@ -240,9 +239,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Install KeySloth
-        run: gem install keysloth rugged
-      - name: Preload rugged
-        run: echo "RUBYOPT=-r rugged" >> $GITHUB_ENV
+        run: gem install keysloth
       - name: Pull secrets
         env:
           SECRET_PASSWORD: ${{ secrets.SECRET_PASSWORD }}

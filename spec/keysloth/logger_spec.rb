@@ -165,7 +165,7 @@ RSpec.describe KeySloth::Logger do
       details = { long_text: long_value }
       logger.audit('test', details)
 
-      expect(output.string).to include('long_text=' + ('a' * 50) + '...')
+      expect(output.string).to include("long_text=#{'a' * 50}...")
     end
 
     it 'handles nil values' do

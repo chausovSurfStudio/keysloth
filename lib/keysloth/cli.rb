@@ -43,7 +43,7 @@ module KeySloth
       Перед выполнением операции автоматически создается резервная копия
       существующей локальной директории с секретами.
     DESC
-    option :repo, type: :string, required: true, aliases: '-r',
+    option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
     option :branch, type: :string, default: 'main', aliases: '-b',
                     desc: 'Ветка репозитория для получения секретов'
@@ -88,7 +88,7 @@ module KeySloth
       - .mobileprovisioning (профили подготовки iOS)
       - .json (конфигурационные файлы)
     DESC
-    option :repo, type: :string, required: true, aliases: '-r',
+    option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
     option :branch, type: :string, default: 'main', aliases: '-b',
                     desc: 'Ветка репозитория для отправки секретов'
@@ -262,7 +262,7 @@ module KeySloth
         logger.info("Корректных файлов: #{valid_files}")
         logger.info("Поврежденных файлов: #{invalid_files}")
 
-        if invalid_files > 0
+        if invalid_files.positive?
           logger.error("Обнаружены поврежденные файлы! Рекомендуется восстановление из backup'а.")
           exit 1
         else

@@ -180,7 +180,7 @@ module KeySloth
         validate_backup_path!(backup_path)
 
         # Удаляем существующую директорию
-        FileUtils.remove_entry(target_path) if File.exist?(target_path)
+        FileUtils.rm_rf(target_path)
 
         # Копируем из backup'а
         FileUtils.cp_r(backup_path, target_path)
@@ -213,7 +213,7 @@ module KeySloth
     # @return [Boolean] true если файл прошел проверку целостности
     def verify_file_integrity(file_path)
       return false unless File.exist?(file_path)
-      return false if File.size(file_path).zero?
+      return false if File.empty?(file_path)
 
       # Базовая проверка на читаемость
       begin
@@ -250,7 +250,7 @@ module KeySloth
 
         # Проверяем размер
         result[:size] = File.size(file_path)
-        result[:non_empty] = result[:size] > 0
+        result[:non_empty] = result[:size].positive?
         return result unless result[:non_empty]
 
         # Проверяем читаемость

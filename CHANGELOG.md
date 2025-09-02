@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-09-02
+
+### Changed
+- Переведена работа с Git на системный git (через Open3), удалена зависимость от Rugged/libgit2
+- Обновлены тесты `spec/keysloth/git_manager_spec.rb` под системный git
+- Улучшена SSH-аутентификация: поддержка `KEYSLOTH_SSH_KEY_PATH`, `SSH_PRIVATE_KEY`/`SSH_PUBLIC_KEY` через `GIT_SSH_COMMAND`
+- Поведение pull: `git fetch` + `git pull --ff-only`, с fallback на `--unshallow`
+- Очистка `.enc` и запись файлов выполняются через файловую систему
+- Добавлена проверка настроек автора коммита (`user.name`/`user.email`)
+
+### Docs
+- Удалены инструкции про Rugged из `task/test_plan.md`; уточнены требования к Git/SSH
+
 ## [0.1.0] - 2023-12-15
 
 ### Added
