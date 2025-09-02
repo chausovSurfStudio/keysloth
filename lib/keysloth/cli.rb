@@ -43,7 +43,7 @@ module KeySloth
       Перед выполнением операции автоматически создается резервная копия
       существующей локальной директории с секретами.
     DESC
-    option :repo, type: :string, required: true, aliases: '-r',
+    option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
     option :branch, type: :string, default: 'main', aliases: '-b',
                     desc: 'Ветка репозитория для получения секретов'
@@ -88,7 +88,7 @@ module KeySloth
       - .mobileprovisioning (профили подготовки iOS)
       - .json (конфигурационные файлы)
     DESC
-    option :repo, type: :string, required: true, aliases: '-r',
+    option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
     option :branch, type: :string, default: 'main', aliases: '-b',
                     desc: 'Ветка репозитория для отправки секретов'

@@ -47,7 +47,7 @@ RSpec.describe KeySloth::GitManager do
 
       # Порядок: clone -> rev-parse -> checkout -b --track -> fetch -> pull --ff-only
       expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
-                                               repo_url, temp_dir, chdir: nil)
+                                               repo_url, temp_dir, anything)
         .and_return(['', '', double(success?: true)]).ordered
 
       expect(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
@@ -89,7 +89,7 @@ RSpec.describe KeySloth::GitManager do
       allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
 
       expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
-                                               repo_url, temp_dir, chdir: nil)
+                                               repo_url, temp_dir, anything)
         .and_return(['', '', double(success?: true)]).ordered
       expect(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
                                                chdir: temp_dir)
@@ -110,7 +110,7 @@ RSpec.describe KeySloth::GitManager do
     it 'ошибка если fast-forward невозможен и unshallow не помогает' do
       allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
       allow(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
-                                              repo_url, temp_dir, chdir: nil)
+                                              repo_url, temp_dir, anything)
         .and_return(['', '', double(success?: true)])
       allow(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
                                               chdir: temp_dir)

@@ -365,10 +365,13 @@ module KeySloth
       start_msg = cmd.is_a?(Array) ? cmd.join(' ') : cmd.to_s
       @logger.debug("Выполняем команду: #{start_msg}")
 
+      options = {}
+      options[:chdir] = chdir if chdir
+
       stdout, stderr, status = if cmd.is_a?(Array)
-                                 Open3.capture3(@git_env, *cmd, chdir: chdir)
+                                 Open3.capture3(@git_env, *cmd, **options)
                                else
-                                 Open3.capture3(@git_env, cmd, chdir: chdir)
+                                 Open3.capture3(@git_env, cmd, **options)
                                end
 
       return [stdout, stderr] if status.success?
