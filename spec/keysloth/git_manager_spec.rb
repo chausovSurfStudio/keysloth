@@ -6,38 +6,10 @@ RSpec.describe KeySloth::GitManager do
   let(:git_manager) { described_class.new(repo_url, logger) }
   let(:temp_dir) { '/tmp/keysloth_test_repo' }
 
-  # Mock Rugged classes - we mock them to avoid dependency
-  let(:rugged_repository_class) { class_double('Rugged::Repository') }
-  let(:rugged_credentials_class) { class_double('Rugged::Credentials::SshKey') }
-  let(:rugged_commit_class) { class_double('Rugged::Commit') }
-  let(:rugged_signature_class) { class_double('Rugged::Signature') }
-  let(:rugged_error_class) { class_double('Rugged::Error') }
-
-  # Mock objects
-  let(:mock_repository) { double('Repository') }
-  let(:mock_index) { double('Index') }
-  let(:mock_branch) { double('Branch') }
-  let(:mock_target) { double('Commit') }
-  let(:mock_blob) { double('Blob') }
-  let(:mock_credentials) { double('SshKey') }
-  let(:mock_signature) { double('Signature') }
-
   before do
-    # Mock Rugged constants
-    stub_const('Rugged::Repository', rugged_repository_class)
-    stub_const('Rugged::Credentials::SshKey', rugged_credentials_class)
-    stub_const('Rugged::Commit', rugged_commit_class)
-    stub_const('Rugged::Signature', rugged_signature_class)
-    stub_const('Rugged::Error', Class.new(StandardError))
-
-    # Mock git availability check
+    # Делаем git доступным
     allow(Open3).to receive(:capture3).with('git --version').and_return(['', '',
                                                                          double(success?: true)])
-
-    # Mock SSH key files
-    allow(File).to receive(:expand_path).with('~/.ssh/id_rsa').and_return('/home/test/.ssh/id_rsa')
-    allow(File).to receive(:expand_path).with('~/.ssh/id_rsa.pub').and_return('/home/test/.ssh/id_rsa.pub')
-    allow(File).to receive(:exist?).with('/home/test/.ssh/id_rsa').and_return(true)
   end
 
   describe '#initialize' do
@@ -69,116 +41,96 @@ RSpec.describe KeySloth::GitManager do
 
   describe '#pull_encrypted_files' do
     let(:branch) { 'main' }
-    let(:encrypted_files) do
-      [
-        { name: 'cert.cer.enc', content: 'encrypted_cert_content' },
-        { name: 'config.json.enc', content: 'encrypted_config_content' }
-      ]
-    end
 
-    before do
+    it 'клонирует репозиторий, переключает ветку, тянет изменения и возвращает .enc файлы' do
       allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
-      allow(rugged_repository_class).to receive(:clone_at).and_return(mock_repository)
-      allow(mock_repository).to receive(:branches).and_return({
-                                                                'main' => mock_branch,
-                                                                'origin/main' => mock_branch
-                                                              })
-      allow(mock_repository).to receive(:checkout)
-      allow(mock_repository).to receive(:index).and_return(mock_index)
-      allow(mock_index).to receive(:each)
-      allow(rugged_credentials_class).to receive(:new).and_return(mock_credentials)
-    end
 
-    it 'clones repository and returns encrypted files' do
-      # Mock index entries
-      entries = [
-        { path: 'cert.cer.enc', oid: 'blob_oid_1' },
-        { path: 'config.json.enc', oid: 'blob_oid_2' },
-        { path: 'regular.txt', oid: 'blob_oid_3' } # Should be ignored
-      ]
+      # Порядок: clone -> rev-parse -> checkout -b --track -> fetch -> pull --ff-only
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, chdir: nil)
+        .and_return(['', '', double(success?: true)]).ordered
 
-      allow(mock_index).to receive(:each).and_yield(entries[0]).and_yield(entries[1]).and_yield(entries[2])
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: false)]).ordered
 
-      # Mock blob lookups
-      blob1 = double('Blob', content: 'encrypted_cert_content')
-      blob2 = double('Blob', content: 'encrypted_config_content')
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'checkout', '-b', branch,
+                                               '--track', "origin/#{branch}", chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
 
-      allow(mock_repository).to receive(:lookup).with('blob_oid_1').and_return(blob1)
-      allow(mock_repository).to receive(:lookup).with('blob_oid_2').and_return(blob2)
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'fetch', 'origin', branch,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'pull', '--ff-only', 'origin',
+                                               branch, chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+
+      allow(Dir).to receive(:glob).with('**/*.enc',
+                                        base: temp_dir).and_return(['cert.cer.enc',
+                                                                    'config.json.enc'])
+      allow(File).to receive(:file?).and_return(true)
+      allow(File).to receive(:read).with(File.join(temp_dir, 'cert.cer.enc')).and_return('enc1')
+      allow(File).to receive(:read).with(File.join(temp_dir, 'config.json.enc')).and_return('enc2')
 
       result = git_manager.pull_encrypted_files(branch)
 
-      expect(result.size).to eq(2)
-      expect(result[0][:name]).to eq('cert.cer.enc')
-      expect(result[0][:content]).to eq('encrypted_cert_content')
-      expect(result[1][:name]).to eq('config.json.enc')
-      expect(result[1][:content]).to eq('encrypted_config_content')
-    end
-
-    it 'handles repository errors' do
-      allow(rugged_repository_class).to receive(:clone_at).and_raise(Rugged::Error.new('Network error'))
-
-      expect do
-        git_manager.pull_encrypted_files(branch)
-      end.to raise_error(KeySloth::RepositoryError,
-                         /Git операция не удалась/)
-    end
-
-    it 'logs operation progress' do
-      allow(mock_index).to receive(:each)
-
-      expect(logger).to receive(:info).with(/Клонируем репозиторий/)
-      expect(logger).to receive(:info).with(/Найдено \d+ зашифрованных файлов/)
-
-      git_manager.pull_encrypted_files(branch)
+      expect(result).to eq([
+                             { name: 'cert.cer.enc', content: 'enc1' },
+                             { name: 'config.json.enc', content: 'enc2' }
+                           ])
     end
   end
 
   describe '#prepare_repository' do
     let(:branch) { 'main' }
 
-    before do
+    it 'клонирует, чекаутит ветку и обновляет её' do
       allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
-      allow(rugged_repository_class).to receive(:clone_at).and_return(mock_repository)
-      allow(mock_repository).to receive(:branches).and_return({
-                                                                'main' => mock_branch,
-                                                                'origin/main' => mock_branch
-                                                              })
-      allow(mock_repository).to receive(:checkout)
-      allow(mock_branch).to receive(:target_id).and_return('commit_sha')
-      allow(rugged_credentials_class).to receive(:new).and_return(mock_credentials)
-    end
 
-    it 'clones repository and checks out branch' do
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, chdir: nil)
+        .and_return(['', '', double(success?: true)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: false)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'checkout', '-b', branch,
+                                               '--track', "origin/#{branch}", chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'fetch', 'origin', branch,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'pull', '--ff-only', 'origin',
+                                               branch, chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+
       git_manager.prepare_repository(branch)
-
-      expect(rugged_repository_class).to have_received(:clone_at).with(
-        repo_url,
-        temp_dir,
-        credentials: mock_credentials
-      )
-      expect(mock_repository).to have_received(:checkout).with(mock_branch)
     end
 
-    it 'raises error if branch is not up to date' do
-      local_branch = double('Branch', target_id: 'local_sha')
-      remote_branch = double('Branch', target_id: 'remote_sha')
-
-      allow(mock_repository).to receive(:branches).and_return({
-                                                                'main' => local_branch,
-                                                                'origin/main' => remote_branch
-                                                              })
+    it 'ошибка если fast-forward невозможен и unshallow не помогает' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                              repo_url, temp_dir, chdir: nil)
+        .and_return(['', '', double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'rev-parse', '--verify', branch,
+                                              chdir: temp_dir)
+        .and_return(['', '', double(success?: false)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'checkout', '-b', branch, '--track',
+                                              "origin/#{branch}", chdir: temp_dir)
+        .and_return(['', '', double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'fetch', 'origin', branch,
+                                              chdir: temp_dir)
+        .and_return(['', '', double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'pull', '--ff-only', 'origin',
+                                              branch, chdir: temp_dir)
+        .and_return(['', 'ff failed', double(success?: false)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'fetch', '--unshallow',
+                                              chdir: temp_dir)
+        .and_return(['', '', double(success?: false)])
 
       expect do
         git_manager.prepare_repository(branch)
-      end.to raise_error(KeySloth::RepositoryError,
-                         /не синхронизирована/)
-    end
-
-    it 'logs preparation progress' do
-      expect(logger).to receive(:info).with(/Подготавливаем репозиторий/)
-
-      git_manager.prepare_repository(branch)
+      end.to raise_error(KeySloth::RepositoryError, /git pull/)
     end
   end
 
@@ -230,38 +182,51 @@ RSpec.describe KeySloth::GitManager do
     let(:branch) { 'main' }
 
     before do
-      git_manager.instance_variable_set(:@repository, mock_repository)
-      allow(mock_repository).to receive(:index).and_return(mock_index)
-      allow(mock_index).to receive(:add_all)
-      allow(mock_index).to receive(:write)
-      allow(mock_index).to receive(:write_tree).and_return('tree_sha')
-      allow(mock_repository).to receive(:diff_workdir_to_index).and_return(double(deltas: [double]))
-      allow(mock_repository).to receive(:diff_index_to_tree).and_return(double(deltas: []))
-      allow(mock_repository).to receive(:head).and_return(double(target: double(tree: 'tree_sha')))
-      allow(rugged_commit_class).to receive(:create).and_return('commit_sha')
-      allow(mock_repository).to receive(:push)
-      allow(rugged_signature_class).to receive(:new).and_return(mock_signature)
-      allow(rugged_credentials_class).to receive(:new).and_return(mock_credentials)
+      git_manager.instance_variable_set(:@temp_dir, temp_dir)
     end
 
     it 'creates commit and pushes changes' do
-      git_manager.commit_and_push(commit_message, branch)
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'add', '-A', chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
 
-      expect(mock_index).to have_received(:add_all)
-      expect(mock_index).to have_received(:write)
-      expect(rugged_commit_class).to have_received(:create)
-      expect(mock_repository).to have_received(:push).with('origin', ["refs/heads/#{branch}"],
-                                                           credentials: mock_credentials)
+      # status показывает изменения
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'status', '--porcelain',
+                                               chdir: temp_dir)
+        .and_return([' M file', '',
+                     double(success?: true)]).ordered
+
+      # git config must be present
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.name',
+                                               chdir: temp_dir)
+        .and_return(['Your Name', '',
+                     double(success?: true)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.email',
+                                               chdir: temp_dir)
+        .and_return(['you@example.com', '',
+                     double(success?: true)]).ordered
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'commit', '-m', commit_message,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'push', 'origin', branch,
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: true)]).ordered
+
+      git_manager.commit_and_push(commit_message, branch)
     end
 
     it 'skips commit when no changes present' do
-      allow(mock_repository).to receive(:diff_workdir_to_index).and_return(double(deltas: []))
-      allow(mock_repository).to receive(:diff_index_to_tree).and_return(double(deltas: []))
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'add', '-A', chdir: temp_dir)
+        .and_return(['', '', double(success?: true)])
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'status', '--porcelain',
+                                               chdir: temp_dir)
+        .and_return(['', '', double(success?: true)])
+      expect(Open3).not_to receive(:capture3).with(anything, 'git', 'commit', '-m', commit_message,
+                                                   chdir: temp_dir)
+      expect(Open3).not_to receive(:capture3).with(anything, 'git', 'push', 'origin', branch,
+                                                   chdir: temp_dir)
 
       git_manager.commit_and_push(commit_message, branch)
-
-      expect(rugged_commit_class).not_to have_received(:create)
-      expect(mock_repository).not_to have_received(:push)
     end
 
     it 'logs commit and push progress' do
@@ -270,16 +235,49 @@ RSpec.describe KeySloth::GitManager do
       expect(logger).to receive(:debug).with(/Изменения отправлены/)
       expect(logger).to receive(:info).with(/Изменения успешно отправлены/)
 
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'add', '-A',
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'status', '--porcelain',
+                                              chdir: temp_dir).and_return(['M file', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.name',
+                                              chdir: temp_dir).and_return(['User', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.email',
+                                              chdir: temp_dir).and_return(['u@e', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'commit', '-m', commit_message,
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'push', 'origin', branch,
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+
       git_manager.commit_and_push(commit_message, branch)
     end
 
     it 'handles git errors during commit' do
-      allow(rugged_commit_class).to receive(:create).and_raise(Rugged::Error.new('Commit failed'))
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'add', '-A',
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'status', '--porcelain',
+                                              chdir: temp_dir).and_return(['M file', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.name',
+                                              chdir: temp_dir).and_return(['User', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.email',
+                                              chdir: temp_dir).and_return(['u@e', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'commit', '-m', commit_message,
+                                              chdir: temp_dir).and_return(['', 'Commit failed',
+                                                                           double(success?: false)])
 
       expect do
         git_manager.commit_and_push(commit_message,
                                     branch)
-      end.to raise_error(KeySloth::RepositoryError, /Не удалось отправить изменения/)
+      end.to raise_error(KeySloth::RepositoryError, /Commit failed/)
     end
   end
 
@@ -311,66 +309,82 @@ RSpec.describe KeySloth::GitManager do
     end
   end
 
-  describe 'SSH credentials handling' do
-    context 'with local SSH keys' do
-      it 'uses standard SSH keys from ~/.ssh' do
-        # This is tested implicitly in other tests through mocking
-        expect(File).to receive(:exist?).with('/home/test/.ssh/id_rsa').and_return(true)
-        allow(rugged_credentials_class).to receive(:new).with(
-          username: 'git',
-          publickey: '/home/test/.ssh/id_rsa.pub',
-          privatekey: '/home/test/.ssh/id_rsa'
-        ).and_return(mock_credentials)
+  describe 'SSH аутентификация' do
+    it 'использует KEYSLOTH_SSH_KEY_PATH через GIT_SSH_COMMAND' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      ENV['KEYSLOTH_SSH_KEY_PATH'] = '/home/test/.ssh/custom_key'
 
-        git_manager.send(:create_ssh_credentials)
+      begin
+        mgr = described_class.new(repo_url, logger)
+        expect(Open3).to receive(:capture3) do |env, *_args|
+          expect(env['GIT_SSH_COMMAND']).to include('-i /home/test/.ssh/custom_key')
+          ['', '', double(success?: true)]
+        end
+
+        # Любая git-команда, например clone
+        mgr.send(:clone_repository)
+      ensure
+        ENV.delete('KEYSLOTH_SSH_KEY_PATH')
       end
     end
 
-    context 'with environment SSH keys' do
-      before do
-        ENV['SSH_PRIVATE_KEY'] = 'private_key_content'
-        ENV['SSH_PUBLIC_KEY'] = 'public_key_content'
-        allow(Dir).to receive(:mktmpdir).and_return('/tmp/keysloth_ssh')
-        allow(File).to receive(:write)
-        allow(File).to receive(:chmod)
+    it 'создает временные ключи из ENV и настраивает GIT_SSH_COMMAND' do
+      ENV['SSH_PRIVATE_KEY'] = 'private_key_content'
+      ENV['SSH_PUBLIC_KEY'] = 'public_key_content'
+      allow(Dir).to receive(:mktmpdir).and_return('/tmp/keysloth_ssh')
+      expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa', 'private_key_content')
+      expect(File).to receive(:chmod).with(0o600, '/tmp/keysloth_ssh/id_rsa')
+      expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa.pub', 'public_key_content')
+
+      mgr = described_class.new(repo_url, logger)
+
+      expect(Open3).to receive(:capture3) do |env, *_args|
+        expect(env['GIT_SSH_COMMAND']).to include('-i /tmp/keysloth_ssh/id_rsa')
+        ['', '', double(success?: true)]
       end
 
-      after do
-        ENV.delete('SSH_PRIVATE_KEY')
-        ENV.delete('SSH_PUBLIC_KEY')
-      end
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      mgr.send(:clone_repository)
 
-      it 'creates temporary SSH keys from environment' do
-        allow(rugged_credentials_class).to receive(:new).with(
-          username: 'git',
-          publickey: '/tmp/keysloth_ssh/id_rsa.pub',
-          privatekey: '/tmp/keysloth_ssh/id_rsa'
-        ).and_return(mock_credentials)
-
-        expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa', 'private_key_content')
-        expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa.pub', 'public_key_content')
-        expect(File).to receive(:chmod).with(0o600, '/tmp/keysloth_ssh/id_rsa')
-
-        git_manager.send(:create_ssh_credentials)
-      end
+      ENV.delete('SSH_PRIVATE_KEY')
+      ENV.delete('SSH_PUBLIC_KEY')
     end
   end
 
   describe 'error handling' do
-    it 'handles authentication errors' do
-      allow(File).to receive(:exist?).with('/home/test/.ssh/id_rsa').and_return(false)
-
-      expect do
-        git_manager.send(:create_ssh_credentials)
-      end.to raise_error(KeySloth::AuthenticationError,
-                         /SSH ключ не найден/)
-    end
-
     it 'validates repository URL format' do
       expect do
-        described_class.new('https://github.com/test/repo.git',
-                            logger)
+        described_class.new('https://github.com/test/repo.git', logger)
       end.to raise_error(KeySloth::RepositoryError, /SSH URL/)
+    end
+
+    it 'raises error when git is not available' do
+      allow(Open3).to receive(:capture3).with('git --version').and_return(['', '',
+                                                                           double(success?: false)])
+      expect do
+        described_class.new(repo_url,
+                            logger)
+      end.to raise_error(KeySloth::RepositoryError, /Git не установлен/)
+    end
+
+    it 'raises error when user.name/email not configured' do
+      git_manager.instance_variable_set(:@temp_dir, temp_dir)
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'add', '-A',
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'status', '--porcelain',
+                                              chdir: temp_dir).and_return(['M file', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.name',
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+      allow(Open3).to receive(:capture3).with(anything, 'git', 'config', '--get', 'user.email',
+                                              chdir: temp_dir).and_return(['', '',
+                                                                           double(success?: true)])
+
+      expect do
+        git_manager.commit_and_push('msg', 'main')
+      end.to raise_error(KeySloth::RepositoryError, /user.name/)
     end
   end
 end

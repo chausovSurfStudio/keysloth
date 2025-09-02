@@ -35,20 +35,19 @@ bundle exec rake rubocop
 ## 3. Сборка и локальная установка gem
 ```bash
 gem build keysloth.gemspec
-gem install ./keysloth-0.1.0.gem
+gem install ./keysloth-0.1.1.gem
 
 # Проверка установки и базовых команд
 keysloth version
 keysloth help
 ```
 
-### Важно про Rugged (доступ к Git через libgit2)
-В текущей версии используется API `Rugged` в `git_manager`. Чтобы избежать ошибки `uninitialized constant Rugged`, добавьте предзагрузку:
+### Требования к Git/SSH
+Инструмент использует системный Git и SSH. Убедитесь, что установлены и доступны из PATH:
 ```bash
-gem install rugged
-export RUBYOPT="-r rugged"
+git --version
+ssh -V
 ```
-(Это временная предзагрузка библиотеки без изменения кода.)
 
 ## 4. Подготовка тестового удалённого репозитория (SSH)
 Вариант A (GitHub через веб-интерфейс):
@@ -240,9 +239,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
       - name: Install KeySloth
-        run: gem install keysloth rugged
-      - name: Preload rugged
-        run: echo "RUBYOPT=-r rugged" >> $GITHUB_ENV
+        run: gem install keysloth
       - name: Pull secrets
         env:
           SECRET_PASSWORD: ${{ secrets.SECRET_PASSWORD }}

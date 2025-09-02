@@ -161,7 +161,7 @@ module KeySloth
       # Скрываем пароли и ключи (проверяем и ключ и значение)
       sensitive_pattern = /password|key|secret|token/i
       return '[HIDDEN]' if str_value.match?(sensitive_pattern) ||
-                           (key_str && key_str.match?(sensitive_pattern))
+                           key_str&.match?(sensitive_pattern)
 
       # Обрезаем длинные значения
       return "#{str_value[0, 50]}..." if str_value.length > 50

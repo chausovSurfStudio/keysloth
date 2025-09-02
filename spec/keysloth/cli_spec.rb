@@ -192,11 +192,9 @@ RSpec.describe KeySloth::CLI do
 
     before do
       allow(KeySloth::FileManager).to receive(:new).and_return(file_manager)
-      allow(file_manager).to receive(:directory_exists?).and_return(true)
-      allow(file_manager).to receive(:collect_secret_files).and_return(secret_files)
       allow(file_manager).to receive(:get_relative_path).and_return('cert.cer', 'config.json')
-      allow(file_manager).to receive(:verify_file_integrity).and_return(true)
-      allow(file_manager).to receive(:list_backups).and_return([])
+      allow(file_manager).to receive_messages(directory_exists?: true,
+                                              collect_secret_files: secret_files, verify_file_integrity: true, list_backups: [])
       allow(File).to receive(:size).and_return(1024)
     end
 
@@ -241,8 +239,8 @@ RSpec.describe KeySloth::CLI do
 
     before do
       allow(KeySloth::FileManager).to receive(:new).and_return(file_manager)
-      allow(file_manager).to receive(:directory_exists?).and_return(true)
-      allow(file_manager).to receive(:collect_secret_files).and_return(secret_files)
+      allow(file_manager).to receive_messages(directory_exists?: true,
+                                              collect_secret_files: secret_files)
       allow(file_manager).to receive(:get_relative_path).and_return('cert.cer', 'config.json')
       allow(file_manager).to receive(:verify_file_integrity).and_return(true, true)
     end
@@ -325,9 +323,8 @@ RSpec.describe KeySloth::CLI do
     before do
       allow(KeySloth::FileManager).to receive(:new).and_return(file_manager)
       allow(file_manager).to receive(:ensure_directory)
-      allow(File).to receive(:exist?).and_return(false)
       allow(File).to receive(:write)
-      allow(File).to receive(:read).and_return('')
+      allow(File).to receive_messages(exist?: false, read: '')
     end
 
     it 'creates configuration and directories' do

@@ -262,7 +262,7 @@ module KeySloth
         logger.info("Корректных файлов: #{valid_files}")
         logger.info("Поврежденных файлов: #{invalid_files}")
 
-        if invalid_files > 0
+        if invalid_files.positive?
           logger.error("Обнаружены поврежденные файлы! Рекомендуется восстановление из backup'а.")
           exit 1
         else

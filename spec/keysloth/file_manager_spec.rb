@@ -6,7 +6,7 @@ RSpec.describe KeySloth::FileManager do
   let(:temp_dir) { create_temp_dir }
 
   after do
-    FileUtils.remove_entry(temp_dir) if Dir.exist?(temp_dir)
+    FileUtils.rm_rf(temp_dir)
   end
 
   describe '#ensure_directory' do
@@ -97,7 +97,7 @@ RSpec.describe KeySloth::FileManager do
       collected_files = file_manager.collect_secret_files(temp_dir)
 
       expect(collected_files.size).to eq(4)
-      secrets.keys.each do |filename|
+      secrets.each_key do |filename|
         expect(collected_files.any? { |f| f.end_with?(filename) }).to be true
       end
     end

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    keysloth (0.1.0)
+    keysloth (0.1.1)
       thor (~> 1.2)
 
 GEM

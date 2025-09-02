@@ -296,7 +296,7 @@ module KeySloth
       offset += auth_tag_length
 
       # Остальные данные - зашифрованный контент
-      encrypted_data = packed_data[offset..-1]
+      encrypted_data = packed_data[offset..]
 
       [salt, iv, auth_tag, encrypted_data]
     end

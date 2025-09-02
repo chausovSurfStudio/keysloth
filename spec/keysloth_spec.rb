@@ -40,13 +40,12 @@ RSpec.describe KeySloth do
                                                                         { name: 'test.cer.enc',
                                                                           content: 'encrypted_content' }
                                                                       ])
-      allow(crypto).to receive(:verify_integrity_detailed).and_return({
-                                                                        valid: true,
-                                                                        structure_valid: true,
-                                                                        decryption_valid: true,
-                                                                        error: nil
-                                                                      })
-      allow(crypto).to receive(:decrypt_file).and_return('decrypted_content')
+      allow(crypto).to receive_messages(verify_integrity_detailed: {
+                                          valid: true,
+                                          structure_valid: true,
+                                          decryption_valid: true,
+                                          error: nil
+                                        }, decrypt_file: 'decrypted_content')
       allow(git_manager).to receive(:cleanup)
 
       # Выполняем операцию
@@ -88,10 +87,8 @@ RSpec.describe KeySloth do
       allow(KeySloth::Crypto).to receive(:new).and_return(crypto)
 
       # Настраиваем поведение моков
-      allow(file_manager).to receive(:directory_exists?).and_return(true)
-      allow(file_manager).to receive(:collect_secret_files).and_return(['test.cer'])
-      allow(file_manager).to receive(:read_file).and_return('file_content')
-      allow(file_manager).to receive(:get_relative_path).and_return('test.cer')
+      allow(file_manager).to receive_messages(directory_exists?: true,
+                                              collect_secret_files: ['test.cer'], read_file: 'file_content', get_relative_path: 'test.cer')
       allow(crypto).to receive(:encrypt_file).and_return('encrypted_content')
 
       allow(git_manager).to receive(:prepare_repository)
