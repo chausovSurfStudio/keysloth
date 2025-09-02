@@ -1,5 +1,7 @@
 # KeySloth
 
+![SwiftObfuscator](keysloth.png)
+
 Ruby gem для безопасного управления зашифрованными секретами в Git репозиториях.
 
 ## Описание

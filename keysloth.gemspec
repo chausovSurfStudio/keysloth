@@ -15,7 +15,7 @@ Gem::Specification.new do |spec|
     Обеспечивает простое получение, изменение и отправку секретов с использованием#{' '}
     AES-256-GCM шифрования.
   DESC
-  spec.homepage = 'https://github.com/keysloth/keysloth'
+  spec.homepage = 'https://github.com/chausovSurfStudio/keysloth'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 2.7.0'
 
