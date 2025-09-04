@@ -63,7 +63,7 @@ RSpec.describe KeySloth::FileManager do
       file_manager.write_file(file_path, test_content)
       read_content = file_manager.read_file(file_path)
 
-      expect(read_content).to eq(test_content)
+      expect(read_content.bytes).to eq(test_content.bytes)
     end
 
     it 'creates directories for file path' do
@@ -71,7 +71,7 @@ RSpec.describe KeySloth::FileManager do
 
       file_manager.write_file(nested_file, test_content)
       expect(File.exist?(nested_file)).to be true
-      expect(file_manager.read_file(nested_file)).to eq(test_content)
+      expect(file_manager.read_file(nested_file).bytes).to eq(test_content.bytes)
     end
 
     it 'handles binary data correctly' do
@@ -80,7 +80,7 @@ RSpec.describe KeySloth::FileManager do
       file_manager.write_file(file_path, binary_content)
       read_content = file_manager.read_file(file_path)
 
-      expect(read_content).to eq(binary_content)
+      expect(read_content.bytes).to eq(binary_content.bytes)
     end
 
     it 'raises error when reading non-existing file' do
@@ -91,13 +91,16 @@ RSpec.describe KeySloth::FileManager do
   end
 
   describe '#collect_secret_files' do
-    it 'collects all supported secret file types' do
+    it 'collects various file types including text, images and binaries' do
       secrets = create_test_secrets(temp_dir)
+      create_test_file(File.join(temp_dir, 'note.txt'), 'hello')
+      create_test_file(File.join(temp_dir, 'image.png'), "\x89PNG\r\n\x1a\n".b)
+      create_test_file(File.join(temp_dir, 'raw.bin'), "\x00\xFF\x10\x20".b)
 
       collected_files = file_manager.collect_secret_files(temp_dir)
 
-      expect(collected_files.size).to eq(4)
-      secrets.each_key do |filename|
+      expect(collected_files.size).to eq(7)
+      (secrets.keys + ['note.txt', 'image.png', 'raw.bin']).each do |filename|
         expect(collected_files.any? { |f| f.end_with?(filename) }).to be true
       end
     end
@@ -116,15 +119,21 @@ RSpec.describe KeySloth::FileManager do
       expect(collected_files.any? { |f| f.include?('root.json') }).to be true
     end
 
-    it 'ignores unsupported file types' do
-      create_test_file(File.join(temp_dir, 'readme.txt'), 'readme')
-      create_test_file(File.join(temp_dir, 'script.sh'), 'script')
-      create_test_file(File.join(temp_dir, 'config.json'), 'config')
+    it 'ignores .enc files, .git content and README.md' do
+      create_test_file(File.join(temp_dir, 'data.txt'), 'data')
+      create_test_file(File.join(temp_dir, 'data.txt.enc'), 'encrypted')
+      git_dir = File.join(temp_dir, '.git')
+      FileUtils.mkdir_p(git_dir)
+      create_test_file(File.join(git_dir, 'ignored.txt'), 'ignored')
+      create_test_file(File.join(temp_dir, 'README.md'), '# local readme')
 
       collected_files = file_manager.collect_secret_files(temp_dir)
 
       expect(collected_files.size).to eq(1)
-      expect(collected_files.first).to end_with('config.json')
+      expect(collected_files.first).to end_with('data.txt')
+      expect(collected_files.any? { |f| f.end_with?('data.txt.enc') }).to be false
+      expect(collected_files.any? { |f| f.include?('/.git/') || f.include?('\\.git\\') }).to be false
+      expect(collected_files.any? { |f| f.end_with?('README.md') }).to be false
     end
 
     it 'returns empty array for directory without secret files' do

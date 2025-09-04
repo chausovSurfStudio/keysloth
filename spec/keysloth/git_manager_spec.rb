@@ -70,8 +70,8 @@ RSpec.describe KeySloth::GitManager do
                                         base: temp_dir).and_return(['cert.cer.enc',
                                                                     'config.json.enc'])
       allow(File).to receive(:file?).and_return(true)
-      allow(File).to receive(:read).with(File.join(temp_dir, 'cert.cer.enc')).and_return('enc1')
-      allow(File).to receive(:read).with(File.join(temp_dir, 'config.json.enc')).and_return('enc2')
+      allow(File).to receive(:binread).with(File.join(temp_dir, 'cert.cer.enc')).and_return('enc1')
+      allow(File).to receive(:binread).with(File.join(temp_dir, 'config.json.enc')).and_return('enc2')
 
       result = git_manager.pull_encrypted_files(branch)
 
@@ -147,16 +147,16 @@ RSpec.describe KeySloth::GitManager do
       allow(Dir).to receive(:glob).and_return([])
       allow(File).to receive(:delete)
       allow(FileUtils).to receive(:mkdir_p)
-      allow(File).to receive(:write)
+      allow(File).to receive(:binwrite)
     end
 
     it 'clears existing encrypted files and writes new ones' do
       git_manager.write_encrypted_files(encrypted_files)
 
       expect(FileUtils).to have_received(:mkdir_p).with("#{temp_dir}/nested")
-      expect(File).to have_received(:write).with("#{temp_dir}/cert.cer.enc", 'encrypted_cert')
-      expect(File).to have_received(:write).with("#{temp_dir}/nested/config.json.enc",
-                                                 'encrypted_config')
+      expect(File).to have_received(:binwrite).with("#{temp_dir}/cert.cer.enc", 'encrypted_cert')
+      expect(File).to have_received(:binwrite).with("#{temp_dir}/nested/config.json.enc",
+                                                    'encrypted_config')
     end
 
     it 'logs writing progress' do
@@ -332,9 +332,9 @@ RSpec.describe KeySloth::GitManager do
       ENV['SSH_PRIVATE_KEY'] = 'private_key_content'
       ENV['SSH_PUBLIC_KEY'] = 'public_key_content'
       allow(Dir).to receive(:mktmpdir).and_return('/tmp/keysloth_ssh')
-      expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa', 'private_key_content')
+      expect(File).to receive(:binwrite).with('/tmp/keysloth_ssh/id_rsa', 'private_key_content')
       expect(File).to receive(:chmod).with(0o600, '/tmp/keysloth_ssh/id_rsa')
-      expect(File).to receive(:write).with('/tmp/keysloth_ssh/id_rsa.pub', 'public_key_content')
+      expect(File).to receive(:binwrite).with('/tmp/keysloth_ssh/id_rsa.pub', 'public_key_content')
 
       mgr = described_class.new(repo_url, logger)
 

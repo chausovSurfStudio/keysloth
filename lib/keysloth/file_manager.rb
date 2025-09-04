@@ -25,8 +25,6 @@ module KeySloth
   # @author KeySloth Team
   # @since 0.1.0
   class FileManager
-    # Поддерживаемые расширения файлов секретов
-    SECRET_FILE_EXTENSIONS = %w[.cer .p12 .mobileprovisioning .json].freeze
 
     # Максимальное количество backup'ов
     DEFAULT_BACKUP_COUNT = 3
@@ -75,7 +73,7 @@ module KeySloth
       @logger.debug("Читаем файл: #{file_path}")
 
       begin
-        content = File.read(file_path)
+        content = File.binread(file_path)
         @logger.debug("Файл прочитан успешно (размер: #{content.length} байт)")
         content
       rescue StandardError => e
@@ -97,7 +95,7 @@ module KeySloth
         directory = File.dirname(file_path)
         ensure_directory(directory) unless directory_exists?(directory)
 
-        File.write(file_path, content)
+        File.binwrite(file_path, content)
         @logger.debug("Файл записан успешно (размер: #{content.length} байт)")
       rescue StandardError => e
         @logger.error('Ошибка записи файла', e)
@@ -105,7 +103,13 @@ module KeySloth
       end
     end
 
-    # Собирает все файлы секретов из директории
+    # Собирает все файлы секретов из директории (wildcard)
+    #
+    # Рекурсивно собирает любые обычные файлы, исключая:
+    # - .enc файлы (они являются артефактами репозитория)
+    # - содержимое .git директорий
+    # - общеизвестные мусорные файлы (.DS_Store, Thumbs.db)
+    # - локальный README.md внутри каталога секретов
     #
     # @param directory_path [String] Путь к директории с секретами
     # @return [Array<String>] Массив путей к файлам секретов
@@ -116,11 +120,24 @@ module KeySloth
       begin
         validate_directory_access!(directory_path)
 
-        files = []
-        SECRET_FILE_EXTENSIONS.each do |extension|
-          pattern = File.join(directory_path, "**/*#{extension}")
-          matching_files = Dir.glob(pattern)
-          files.concat(matching_files)
+        all_candidates = Dir.glob(File.join(directory_path, '**', '*'), File::FNM_DOTMATCH)
+
+        files = all_candidates.select do |path|
+          next false unless File.file?(path)
+
+          relative = get_relative_path(path, directory_path)
+
+          # Исключаем .git содержимое
+          next false if relative.split(File::SEPARATOR).include?('.git')
+
+          # Исключаем артефакты шифрования
+          next false if File.extname(path).downcase == '.enc'
+
+          # Исключаем общеизвестный мусор и локальный README.md
+          base = File.basename(path)
+          next false if base == '.DS_Store' || base == 'Thumbs.db' || base == 'README.md'
+
+          true
         end
 
         @logger.info("Найдено #{files.size} файлов секретов")
@@ -217,7 +234,7 @@ module KeySloth
 
       # Базовая проверка на читаемость
       begin
-        content = File.read(file_path, 100) # Читаем первые 100 байт для проверки
+        content = File.binread(file_path, 100) # Читаем первые 100 байт для проверки
 
         # Дополнительная проверка по типу файла
         file_extension = File.extname(file_path).downcase
@@ -254,7 +271,7 @@ module KeySloth
         return result unless result[:non_empty]
 
         # Проверяем читаемость
-        content = File.read(file_path, 200) # Читаем больше для детальной проверки
+        content = File.binread(file_path, 200) # Читаем больше для детальной проверки
         result[:readable] = true
 
         # Проверяем соответствие типу файла
