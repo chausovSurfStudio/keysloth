@@ -170,10 +170,14 @@ KeySloth обеспечивает многоуровневую защиту:
 
 ```bash
 # Генерируем SSH ключ если нет
-ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
+ssh-keygen -t rsa -b 4096 -C "your_email@example.com"   # RSA
+# или современный вариант:
+ssh-keygen -t ed25519 -C "your_email@example.com"       # Ed25519
 
 # Добавляем публичный ключ в GitHub/GitLab
 cat ~/.ssh/id_rsa.pub
+# или
+cat ~/.ssh/id_ed25519.pub
 ```
 
 #### CI/CD настройка
@@ -182,8 +186,8 @@ cat ~/.ssh/id_rsa.pub
 
 ```bash
 # Экспортируем SSH ключ в переменную окружения
-export SSH_PRIVATE_KEY="$(cat ~/.ssh/id_rsa)"
-export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"
+export SSH_PRIVATE_KEY="$(cat ~/.ssh/id_rsa)"            # может быть RSA или Ed25519
+export SSH_PUBLIC_KEY="$(cat ~/.ssh/id_rsa.pub)"        # опционально
 
 # Используем в CI/CD
 keysloth pull -r git@github.com:company/secrets.git -p $SECRET_PASSWORD
@@ -198,6 +202,12 @@ export GIT_SSH_COMMAND='ssh -i /tmp/keysloth_ssh/id_rsa -o IdentitiesOnly=yes -o
 ```
 
 Для локальной разработки отключать проверку хостов не рекомендуется.
+
+Также можно явно указать путь к ключу через переменную окружения `KEYSLOTH_SSH_KEY_PATH` (поддерживаются как RSA, так и Ed25519):
+
+```bash
+export KEYSLOTH_SSH_KEY_PATH="~/.ssh/id_ed25519"
+```
 
 #### Требования к автору коммита
 
@@ -347,6 +357,8 @@ ssh-add -l
 
 # Добавьте SSH ключ если необходимо
 ssh-add ~/.ssh/id_rsa
+# или
+ssh-add ~/.ssh/id_ed25519
 
 # Проверьте соединение с GitHub/GitLab
 ssh -T git@github.com
