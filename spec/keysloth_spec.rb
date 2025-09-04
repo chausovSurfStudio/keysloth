@@ -58,6 +58,52 @@ RSpec.describe KeySloth do
 
       expect(result).to be true
     end
+
+    it 'passes backup_count from config to FileManager' do
+      git_manager = instance_double(KeySloth::GitManager)
+      file_manager = instance_double(KeySloth::FileManager)
+      crypto = instance_double(KeySloth::Crypto)
+      logger = mock_logger
+      config = instance_double(KeySloth::Config)
+
+      random_backup_count = rand(1..20)
+
+      allow(KeySloth::Logger).to receive(:new).and_return(logger)
+      allow(KeySloth::Config).to receive(:load).and_return(config)
+      allow(config).to receive(:merge).and_return({
+                                                    repo_url: repo_url,
+                                                    branch: branch,
+                                                    local_path: local_path,
+                                                    backup_count: random_backup_count
+                                                  })
+
+      allow(KeySloth::GitManager).to receive(:new).and_return(git_manager)
+      allow(KeySloth::Crypto).to receive(:new).and_return(crypto)
+
+      allow(File).to receive(:exist?).and_return(false)
+      allow(file_manager).to receive(:ensure_directory)
+      allow(file_manager).to receive(:write_file)
+      allow(git_manager).to receive(:pull_encrypted_files).and_return([
+                                                                        { name: 'test.cer.enc',
+                                                                          content: 'encrypted_content' }
+                                                                      ])
+      allow(crypto).to receive_messages(verify_integrity_detailed: {
+                                          valid: true,
+                                          structure_valid: true,
+                                          decryption_valid: true,
+                                          error: nil
+                                        }, decrypt_file: 'decrypted_content')
+      allow(git_manager).to receive(:cleanup)
+
+      expect(KeySloth::FileManager).to receive(:new).with(logger, random_backup_count).and_return(file_manager)
+
+      described_class.pull(
+        repo_url: repo_url,
+        password: password,
+        local_path: local_path,
+        branch: branch
+      )
+    end
   end
 
   describe '.push' do
@@ -105,6 +151,45 @@ RSpec.describe KeySloth do
       )
 
       expect(result).to be true
+    end
+
+    it 'passes backup_count from config to FileManager' do
+      git_manager = instance_double(KeySloth::GitManager)
+      file_manager = instance_double(KeySloth::FileManager)
+      crypto = instance_double(KeySloth::Crypto)
+      logger = mock_logger
+      config = instance_double(KeySloth::Config)
+
+      random_backup_count = rand(1..20)
+
+      allow(KeySloth::Logger).to receive(:new).and_return(logger)
+      allow(KeySloth::Config).to receive(:load).and_return(config)
+      allow(config).to receive(:merge).and_return({
+                                                    repo_url: repo_url,
+                                                    branch: branch,
+                                                    local_path: local_path,
+                                                    backup_count: random_backup_count
+                                                  })
+
+      allow(KeySloth::GitManager).to receive(:new).and_return(git_manager)
+      allow(KeySloth::Crypto).to receive(:new).and_return(crypto)
+
+      allow(file_manager).to receive_messages(directory_exists?: true,
+                                              collect_secret_files: ['test.cer'], read_file: 'file_content', get_relative_path: 'test.cer')
+      allow(crypto).to receive(:encrypt_file).and_return('encrypted_content')
+      allow(git_manager).to receive(:prepare_repository)
+      allow(git_manager).to receive(:write_encrypted_files)
+      allow(git_manager).to receive(:commit_and_push)
+      allow(git_manager).to receive(:cleanup)
+
+      expect(KeySloth::FileManager).to receive(:new).with(logger, random_backup_count).and_return(file_manager)
+
+      described_class.push(
+        repo_url: repo_url,
+        password: password,
+        local_path: local_path,
+        branch: branch
+      )
     end
   end
 end

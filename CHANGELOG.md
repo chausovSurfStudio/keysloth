@@ -19,6 +19,9 @@
 - Обновлены CLI help и README для отражения поддержки любых типов
 - Улучшены сообщения об ошибках SSH: подсказки для `Permission denied (publickey)`, `Host key verification failed`, `Repository not found`
 
+### Fixed
+- Исправлено: параметр `backup_count` из `.keyslothrc` ранее игнорировался (всегда хранилось 3 бэкапа). Теперь значение конфигурации применяется, а `backup_count: 0` корректно отключает создание и ротацию бэкапов.
+
 ### Tests
 - Обновлены и расширены тесты `file_manager_spec` и `git_manager_spec` под wildcard и бинарный I/O
 - Добавлены тесты на подсказки SSH-ошибок в `git_manager_spec`

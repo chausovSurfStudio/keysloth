@@ -98,7 +98,14 @@ module KeySloth
       logger.info("Начинаем получение секретов из репозитория: #{repo_url}")
 
       git_manager = GitManager.new(merged_config[:repo_url], logger)
-      file_manager = FileManager.new(logger)
+      # Прокидываем backup_count из конфигурации; невалидные значения заменяем дефолтом
+      configured_backup_count = merged_config[:backup_count]
+      backup_count = if configured_backup_count.is_a?(Integer) && configured_backup_count >= 0
+                       configured_backup_count
+                     else
+                       KeySloth::FileManager::DEFAULT_BACKUP_COUNT
+                     end
+      file_manager = FileManager.new(logger, backup_count)
       crypto = Crypto.new(password, logger)
 
       # Создаем backup перед операцией
@@ -209,7 +216,13 @@ module KeySloth
       logger.info("Начинаем отправку секретов в репозиторий: #{repo_url}")
 
       git_manager = GitManager.new(merged_config[:repo_url], logger)
-      file_manager = FileManager.new(logger)
+      configured_backup_count = merged_config[:backup_count]
+      backup_count = if configured_backup_count.is_a?(Integer) && configured_backup_count >= 0
+                       configured_backup_count
+                     else
+                       KeySloth::FileManager::DEFAULT_BACKUP_COUNT
+                     end
+      file_manager = FileManager.new(logger, backup_count)
       crypto = Crypto.new(password, logger)
 
       # Проверяем существование локальной директории

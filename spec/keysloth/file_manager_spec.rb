@@ -204,6 +204,30 @@ RSpec.describe KeySloth::FileManager do
 
       file_manager.create_backup(temp_dir)
     end
+
+    it 'respects rotation limit when custom backup_count is provided' do
+      create_test_secrets(temp_dir)
+      limited_manager = described_class.new(logger, 2)
+
+      3.times do |i|
+        Timecop.travel(Time.now + (i + 1))
+        limited_manager.create_backup(temp_dir)
+      end
+
+      backups = limited_manager.list_backups(temp_dir)
+      expect(backups.size).to eq(2)
+    end
+
+    it 'does not create backups when backup_count is zero' do
+      create_test_secrets(temp_dir)
+      disabled_manager = described_class.new(logger, 0)
+
+      result = disabled_manager.create_backup(temp_dir)
+      backups = disabled_manager.list_backups(temp_dir)
+
+      expect(result).to be_nil
+      expect(backups).to be_empty
+    end
   end
 
   describe '#list_backups' do
