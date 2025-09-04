@@ -381,7 +381,33 @@ module KeySloth
       return [stdout, stderr] if allow_failure
 
       base_msg = (stderr.strip.empty? ? stdout.strip : stderr.strip)
-      advice = 'Совет: проверьте доступ к репозиторию, корректность ветки и SSH-настройки.'
+
+      # Расширенные подсказки для типовых SSH/Git ошибок
+      extra_advice = nil
+      lower = base_msg.downcase
+      if lower.include?('permission denied (publickey)')
+        extra_advice = [
+          'Совет: SSH-ключ не найден или не принят.',
+          '1) Проверьте ключи в агенте: ssh-add -l (или загрузите: ssh-add ~/.ssh/id_ed25519)',
+          '2) Укажите ключ явно: export KEYSLOTH_SSH_KEY_PATH=~/.ssh/id_ed25519 (или используйте SSH_PRIVATE_KEY в CI)',
+          '3) Проверьте права на ключ: chmod 600 ~/.ssh/<key>'
+        ].join("\n")
+      elsif lower.include?('host key verification failed')
+        extra_advice = [
+          'Совет: Не пройдена проверка ключа хоста.',
+          '1) Добавьте хост в known_hosts: ssh-keyscan <host> >> ~/.ssh/known_hosts',
+          '2) Избегайте отключения StrictHostKeyChecking вне CI'
+        ].join("\n")
+      elsif lower.include?('repository not found') || lower.include?('could not read from remote repository')
+        extra_advice = [
+          'Совет: Проверьте корректность URL и доступ к репозиторию.',
+          '1) Убедитесь, что у вас есть права доступа (приглашение/ключ).',
+          '2) Проверьте точность SSH URL: git@host:owner/repo.git'
+        ].join("\n")
+      end
+
+      generic_advice = 'Совет: проверьте доступ к репозиторию, корректность ветки и SSH-настройки.'
+      advice = extra_advice || generic_advice
       raise RepositoryError, [base_msg, advice].reject(&:empty?).join("\n")
     end
 

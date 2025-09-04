@@ -17,13 +17,16 @@
 - Перевод всех I/O операций на бинарные методы `File.binread`/`File.binwrite`
 - Обновлены проверки целостности: работают с бинарными данными
 - Обновлены CLI help и README для отражения поддержки любых типов
+- Улучшены сообщения об ошибках SSH: подсказки для `Permission denied (publickey)`, `Host key verification failed`, `Repository not found`
 
 ### Tests
 - Обновлены и расширены тесты `file_manager_spec` и `git_manager_spec` под wildcard и бинарный I/O
+- Добавлены тесты на подсказки SSH-ошибок в `git_manager_spec`
 
 ### Docs
 - README: заменён раздел «Поддерживаемые типы» на «Типы файлов (любые)» и добавлены исключения
 - Обновлён test_plan с учётом новых сценариев
+- README: добавлены примеры с `ed25519` и переменной `KEYSLOTH_SSH_KEY_PATH`
 
 ## [0.1.1] - 2025-09-02
 

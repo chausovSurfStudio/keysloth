@@ -387,4 +387,75 @@ RSpec.describe KeySloth::GitManager do
       end.to raise_error(KeySloth::RepositoryError, /user.name/)
     end
   end
+
+  describe 'SSH ошибки и подсказки' do
+    it 'добавляет советы при Permission denied (publickey)' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      mgr = described_class.new(repo_url, logger)
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, anything)
+                                          .and_return(['', 'Permission denied (publickey).',
+                                                       double(success?: false)])
+
+      expect do
+        mgr.send(:clone_repository)
+      end.to raise_error(KeySloth::RepositoryError) { |e|
+        expect(e.message).to include('Permission denied (publickey)')
+        expect(e.message).to include('ssh-add -l')
+        expect(e.message).to include('KEYSLOTH_SSH_KEY_PATH')
+        expect(e.message).to include('SSH_PRIVATE_KEY')
+      }
+    end
+
+    it 'добавляет советы при Host key verification failed' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      mgr = described_class.new(repo_url, logger)
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, anything)
+                                          .and_return(['', 'Host key verification failed.',
+                                                       double(success?: false)])
+
+      expect do
+        mgr.send(:clone_repository)
+      end.to raise_error(KeySloth::RepositoryError) { |e|
+        expect(e.message).to include('Host key verification failed')
+        expect(e.message).to include('ssh-keyscan')
+        expect(e.message).to include('known_hosts')
+      }
+    end
+
+    it 'добавляет советы при Repository not found' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      mgr = described_class.new(repo_url, logger)
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, anything)
+                                          .and_return(['', 'Repository not found',
+                                                       double(success?: false)])
+
+      expect do
+        mgr.send(:clone_repository)
+      end.to raise_error(KeySloth::RepositoryError) { |e|
+        expect(e.message).to include('Repository not found')
+        expect(e.message).to include('Проверьте корректность URL')
+        expect(e.message).to include('доступ к репозиторию')
+      }
+    end
+
+    it 'даёт общий совет для нерспознанной ошибки' do
+      allow(Dir).to receive(:mktmpdir).and_return(temp_dir)
+      mgr = described_class.new(repo_url, logger)
+
+      expect(Open3).to receive(:capture3).with(anything, 'git', 'clone', '--quiet', '--depth', '1',
+                                               repo_url, temp_dir, anything)
+                                          .and_return(['', 'Some other error',
+                                                       double(success?: false)])
+
+      expect do
+        mgr.send(:clone_repository)
+      end.to raise_error(KeySloth::RepositoryError, /Совет: проверьте доступ к репозиторию, корректность ветки и SSH-настройки/)
+    end
+  end
 end
