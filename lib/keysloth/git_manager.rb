@@ -108,7 +108,7 @@ module KeySloth
           FileUtils.mkdir_p(File.dirname(file_path))
 
           # Записываем файл
-          File.write(file_path, file_data[:content])
+          File.binwrite(file_path, file_data[:content])
           @logger.debug("Записан файл: #{file_data[:path]}")
         end
       rescue StandardError => e
@@ -271,7 +271,7 @@ module KeySloth
 
         files << {
           name: relative_path,
-          content: File.read(full_path)
+          content: File.binread(full_path)
         }
       end
 
@@ -332,9 +332,9 @@ module KeySloth
         private_key_path = File.join(@ssh_tmp_dir, 'id_rsa')
         public_key_path = File.join(@ssh_tmp_dir, 'id_rsa.pub')
 
-        File.write(private_key_path, ENV['SSH_PRIVATE_KEY'])
+        File.binwrite(private_key_path, ENV['SSH_PRIVATE_KEY'])
         File.chmod(0o600, private_key_path)
-        File.write(public_key_path, ENV['SSH_PUBLIC_KEY']) if ENV['SSH_PUBLIC_KEY']
+        File.binwrite(public_key_path, ENV['SSH_PUBLIC_KEY']) if ENV['SSH_PUBLIC_KEY']
 
         # В CI отключаем проверку хостов (опционально)
         return %(ssh -i #{private_key_path} -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)

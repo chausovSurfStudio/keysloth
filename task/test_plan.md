@@ -88,7 +88,7 @@ cat .gitignore
 Ожидаемо: `.keyslothrc` содержит `repo_url`, `branch`, `local_path`; в `.gitignore` добавлены `secrets/` и `.keyslothrc`.
 
 ## 6. Подготовка тестовых «секретов»
-Создадим набор файлов разных типов, поддерживаемых инструментом:
+Создадим набор файлов разных типов (произвольные расширения поддерживаются):
 ```bash
 mkdir -p secrets/certificates secrets/config
 
@@ -113,6 +113,10 @@ printf "\x30\x82\x05\x10\x02\x01\x03\x30" > secrets/certificates/dev.p12
 
 # Mobile provisioning (XML/plist признак)
 echo '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"></plist>' > secrets/dev.mobileprovisioning
+
+# Текст/произвольные бинарные
+echo 'note' > secrets/note.txt
+printf "\x00\xFF\x10\x20" > secrets/raw.bin
 ```
 
 ## 7. Первая отправка секретов (push)
@@ -145,6 +149,11 @@ keysloth pull \
 # Проверим содержимое
 ls -la ./secrets ./secrets/certificates
 cat ./secrets/config/app.json
+
+# Побайтная идентичность бинарных файлов (пример):
+shasum -a 256 ./secrets/certificates/dev.p12 > /tmp/hash_pull.txt
+shasum -a 256 ~/tmp/keysloth-playground_origin/certificates/dev.p12 > /tmp/hash_origin.txt || true
+diff -u /tmp/hash_origin.txt /tmp/hash_pull.txt || echo "hash mismatch (проверить исходный путь к origin)"
 ```
 
 Ожидаемо: файлы восстановлены и читаемы.
