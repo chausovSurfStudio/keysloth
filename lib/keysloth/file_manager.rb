@@ -164,6 +164,8 @@ module KeySloth
     # @raise [FileSystemError] при ошибках создания backup'а
     def create_backup(directory_path)
       return nil unless directory_exists?(directory_path)
+      # Отключение бэкапов: при нулевом или отрицательном лимите
+      return nil if @backup_count.to_i <= 0
 
       timestamp = Time.now.strftime('%Y%m%d_%H%M%S')
       backup_name = "#{File.basename(directory_path)}_backup_#{timestamp}"
@@ -339,6 +341,9 @@ module KeySloth
     # @param parent_dir [String] Родительская директория
     # @param base_name [String] Базовое имя директории
     def cleanup_old_backups(parent_dir, base_name)
+      # При отключённых бэкапах не удаляем существующие
+      return if @backup_count.to_i <= 0
+
       backups = list_backups(File.join(parent_dir, base_name))
 
       return if backups.size <= @backup_count
