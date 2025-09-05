@@ -112,6 +112,7 @@ keysloth push --repo git@github.com:company/secrets.git \
 
 ```bash
 keysloth status --path ./secrets
+# без --path возьмёт путь из .keyslothrc (или дефолт)
 ```
 
 #### restore - Восстановление из backup'а
@@ -120,6 +121,7 @@ keysloth status --path ./secrets
 
 ```bash
 keysloth restore secrets_backup_20231215_143022 --path ./secrets
+# без --path возьмёт путь из .keyslothrc (или дефолт)
 ```
 
 ### Конфигурационный файл

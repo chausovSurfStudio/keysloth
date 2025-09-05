@@ -231,6 +231,14 @@ RSpec.describe KeySloth::CLI do
 
       expect(logger).to have_received(:info).with(/Доступные резервные копии/)
     end
+
+    it 'uses local_path from config when path option is not provided' do
+      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+
+      cli.invoke(:status, [], { config: '.keyslothrc' })
+
+      expect(file_manager).to have_received(:collect_secret_files).with('./conf_secrets')
+    end
   end
 
   describe '#validate' do
@@ -286,6 +294,15 @@ RSpec.describe KeySloth::CLI do
 
       expect(logger).to have_received(:error).with(/Директория секретов не существует/)
     end
+
+    it 'uses local_path from config when path option is not provided' do
+      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+      allow(file_manager).to receive(:verify_file_integrity).and_return(true)
+
+      cli.invoke(:validate, [], { config: '.keyslothrc' })
+
+      expect(file_manager).to have_received(:collect_secret_files).with('./conf_secrets')
+    end
   end
 
   describe '#restore' do
@@ -313,6 +330,14 @@ RSpec.describe KeySloth::CLI do
       end.to raise_error(SystemExit)
 
       expect(logger).to have_received(:error).with(/Ошибка восстановления: Backup not found/)
+    end
+
+    it 'uses local_path from config when path option is not provided' do
+      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+
+      cli.invoke(:restore, [backup_path], { config: '.keyslothrc' })
+
+      expect(file_manager).to have_received(:restore_from_backup).with(backup_path, './conf_secrets')
     end
   end
 

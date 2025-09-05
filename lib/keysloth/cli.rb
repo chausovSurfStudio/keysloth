@@ -117,7 +117,7 @@ module KeySloth
       - Информацию о доступных резервных копиях
       - Проверку целостности файлов
     DESC
-    option :path, type: :string, default: './secrets', aliases: '-d',
+    option :path, type: :string, aliases: '-d',
                   desc: 'Локальный путь с секретами для проверки'
     def status
       setup_logger
@@ -126,14 +126,17 @@ module KeySloth
 
       begin
         file_manager = FileManager.new(logger)
+        # Выбор пути: CLI -> конфиг -> дефолт
+        config = Config.load(options[:config])
+        resolved_path = options[:path] || config[:local_path] || Config::DEFAULT_CONFIG[:local_path]
 
-        unless file_manager.directory_exists?(options[:path])
-          logger.warn("Директория секретов не существует: #{options[:path]}")
+        unless file_manager.directory_exists?(resolved_path)
+          logger.warn("Директория секретов не существует: #{resolved_path}")
           return
         end
 
         # Собираем файлы секретов
-        secret_files = file_manager.collect_secret_files(options[:path])
+        secret_files = file_manager.collect_secret_files(resolved_path)
 
         if secret_files.empty?
           logger.info('Файлы секретов не найдены')
@@ -144,7 +147,7 @@ module KeySloth
 
         secret_files.each do |file_path|
           size = File.size(file_path)
-          relative_path = file_manager.get_relative_path(file_path, options[:path])
+          relative_path = file_manager.get_relative_path(file_path, resolved_path)
           integrity = file_manager.verify_file_integrity(file_path) ? '✓' : '✗'
 
           logger.info("  #{integrity} #{relative_path} (#{size} байт)")
@@ -179,7 +182,7 @@ module KeySloth
       резервной копии. Используйте команду 'status' для просмотра
       доступных резервных копий.
     DESC
-    option :path, type: :string, default: './secrets', aliases: '-d',
+    option :path, type: :string, aliases: '-d',
                   desc: 'Локальный путь для восстановления секретов'
     def restore(backup_path)
       setup_logger
@@ -188,7 +191,9 @@ module KeySloth
 
       begin
         file_manager = FileManager.new(logger)
-        file_manager.restore_from_backup(backup_path, options[:path])
+        config = Config.load(options[:config])
+        resolved_path = options[:path] || config[:local_path] || Config::DEFAULT_CONFIG[:local_path]
+        file_manager.restore_from_backup(backup_path, resolved_path)
 
         logger.info('=== Восстановление завершено успешно ===')
       rescue KeySloth::KeySlothError => e
@@ -206,7 +211,7 @@ module KeySloth
       - Валидирует структуру файлов секретов
       - Выводит детальный отчет о состоянии каждого файла
     DESC
-    option :path, type: :string, default: './secrets', aliases: '-d',
+    option :path, type: :string, aliases: '-d',
                   desc: 'Локальный путь с секретами для проверки'
     def validate
       setup_logger
@@ -215,14 +220,16 @@ module KeySloth
 
       begin
         file_manager = FileManager.new(logger)
+        config = Config.load(options[:config])
+        resolved_path = options[:path] || config[:local_path] || Config::DEFAULT_CONFIG[:local_path]
 
-        unless file_manager.directory_exists?(options[:path])
-          logger.error("Директория секретов не существует: #{options[:path]}")
+        unless file_manager.directory_exists?(resolved_path)
+          logger.error("Директория секретов не существует: #{resolved_path}")
           exit 1
         end
 
         # Собираем файлы секретов
-        secret_files = file_manager.collect_secret_files(options[:path])
+        secret_files = file_manager.collect_secret_files(resolved_path)
 
         if secret_files.empty?
           logger.warn('Файлы секретов не найдены')
@@ -235,7 +242,7 @@ module KeySloth
         invalid_files = 0
 
         secret_files.each do |file_path|
-          relative_path = file_manager.get_relative_path(file_path, options[:path])
+          relative_path = file_manager.get_relative_path(file_path, resolved_path)
 
           if file_manager.verify_file_integrity(file_path)
             logger.info("  ✓ #{relative_path} - файл корректен")
