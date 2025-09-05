@@ -75,7 +75,7 @@ module KeySloth
     # @raise [KeySloth::RepositoryError] при ошибках работы с репозиторием
     # @raise [KeySloth::CryptoError] при ошибках расшифровки
     # @raise [KeySloth::FileSystemError] при ошибках файловой системы
-    def pull(repo_url:, password:, local_path:, branch: 'main', config_file: nil)
+    def pull(repo_url:, password:, local_path: nil, branch: nil, config_file: nil)
       start_time = Time.now
       logger = Logger.new
       config = Config.load(config_file)
@@ -191,7 +191,7 @@ module KeySloth
     # @raise [KeySloth::RepositoryError] при ошибках работы с репозиторием
     # @raise [KeySloth::CryptoError] при ошибках шифрования
     # @raise [KeySloth::FileSystemError] при ошибках файловой системы
-    def push(repo_url:, password:, local_path:, branch: 'main',
+    def push(repo_url:, password:, local_path: nil, branch: nil,
              config_file: nil, commit_message: nil)
       start_time = Time.now
       logger = Logger.new
