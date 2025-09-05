@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'thor'
+require 'time'
 
 module KeySloth
   # Интерфейс командной строки для KeySloth
@@ -154,14 +155,20 @@ module KeySloth
         end
 
         # Показываем информацию о backup'ах
-        backups = file_manager.list_backups(options[:path])
+        backups = file_manager.list_backups(resolved_path)
         if backups.any?
           logger.info("\nДоступные резервные копии:")
           backups.each do |backup_path|
             backup_time = File.basename(backup_path).match(/_(\d{8}_\d{6})$/)&.captures&.first
-            if backup_time
-              formatted_time = Time.strptime(backup_time,
-                                             '%Y%m%d_%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+            formatted_time = begin
+              if backup_time
+                Time.strptime(backup_time, '%Y%m%d_%H%M%S').strftime('%Y-%m-%d %H:%M:%S')
+              end
+            rescue StandardError
+              nil
+            end
+
+            if formatted_time
               logger.info("  #{File.basename(backup_path)} (#{formatted_time})")
             else
               logger.info("  #{File.basename(backup_path)}")
