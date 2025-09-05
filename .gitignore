@@ -44,3 +44,7 @@ Thumbs.db
 
 # Логи
 *.log
+
+# Appraisal / gemfiles
+/gemfiles/.bundle/
+/gemfiles/*.lock

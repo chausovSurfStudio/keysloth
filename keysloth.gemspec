@@ -37,7 +37,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   # Основные зависимости
-  spec.add_dependency 'thor', '~> 1.2' # CLI интерфейс
+  spec.add_dependency 'thor', '>= 1.0.1', '< 1.4.0' # CLI интерфейс
   # Используем системные git команды вместо rugged для упрощения установки
   # Используем встроенный openssl, доступный в Ruby по умолчанию
 
