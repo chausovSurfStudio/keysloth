@@ -8,6 +8,7 @@ gemspec
 group :development, :test do
   gem 'pry', '~> 0.14' # Отладка
   gem 'rake', '~> 13.0' # Задачи
+  gem 'appraisal', '~> 2.5'
 end
 
 group :test do
