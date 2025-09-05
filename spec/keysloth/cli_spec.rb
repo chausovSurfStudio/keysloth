@@ -232,8 +232,34 @@ RSpec.describe KeySloth::CLI do
       expect(logger).to have_received(:info).with(/Доступные резервные копии/)
     end
 
+    it 'does not crash if Time.strptime is unavailable (prints raw name)' do
+      backups = ['/path/secrets_backup_20231201_120000']
+      allow(file_manager).to receive(:list_backups).and_return(backups)
+      allow(Time).to receive(:strptime).and_raise(NoMethodError)
+
+      expect do
+        cli.invoke(:status, [], { path: './secrets' })
+      end.not_to raise_error
+
+      expect(logger).to have_received(:info).with(/secrets_backup_20231201_120000/)
+    end
+
+    it 'lists backups for resolved_path (config path when no --path)' do
+      backups = ['/path/conf_secrets_backup_20231201_120000']
+      allow(file_manager).to receive(:list_backups).and_return(backups)
+      config_double = instance_double(KeySloth::Config)
+      allow(config_double).to receive(:[]).with(:local_path).and_return('./conf_secrets')
+      allow(KeySloth::Config).to receive(:load).and_return(config_double)
+
+      cli.invoke(:status, [], { config: '.keyslothrc' })
+
+      expect(file_manager).to have_received(:list_backups).with('./conf_secrets')
+    end
+
     it 'uses local_path from config when path option is not provided' do
-      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+      config_double = instance_double(KeySloth::Config)
+      allow(config_double).to receive(:[]).with(:local_path).and_return('./conf_secrets')
+      allow(KeySloth::Config).to receive(:load).and_return(config_double)
 
       cli.invoke(:status, [], { config: '.keyslothrc' })
 
@@ -296,7 +322,9 @@ RSpec.describe KeySloth::CLI do
     end
 
     it 'uses local_path from config when path option is not provided' do
-      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+      config_double = instance_double(KeySloth::Config)
+      allow(config_double).to receive(:[]).with(:local_path).and_return('./conf_secrets')
+      allow(KeySloth::Config).to receive(:load).and_return(config_double)
       allow(file_manager).to receive(:verify_file_integrity).and_return(true)
 
       cli.invoke(:validate, [], { config: '.keyslothrc' })
@@ -333,7 +361,9 @@ RSpec.describe KeySloth::CLI do
     end
 
     it 'uses local_path from config when path option is not provided' do
-      allow(KeySloth::Config).to receive(:load).and_return(instance_double(KeySloth::Config, to_h: {}, merge: { local_path: './conf_secrets' }))
+      config_double = instance_double(KeySloth::Config)
+      allow(config_double).to receive(:[]).with(:local_path).and_return('./conf_secrets')
+      allow(KeySloth::Config).to receive(:load).and_return(config_double)
 
       cli.invoke(:restore, [backup_path], { config: '.keyslothrc' })
 
