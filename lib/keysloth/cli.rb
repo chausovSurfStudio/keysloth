@@ -49,7 +49,7 @@ module KeySloth
     def pull
       setup_logger
 
-      logger.info('=== Начинаем операцию получения секретов ===')
+      logger.info("\n=== Начинаем операцию получения секретов ===")
 
       begin
         KeySloth.pull(
@@ -60,9 +60,9 @@ module KeySloth
           config_file: options[:config]
         )
 
-        logger.info('=== Операция получения секретов завершена успешно ===')
+        logger.info("✅ Операция получения секретов завершена успешно\n")
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка выполнения операции: #{e.message}")
+        logger.error("⛔ Ошибка выполнения операции: #{e.message}")
         exit 1
       end
     end
@@ -91,7 +91,7 @@ module KeySloth
     def push
       setup_logger
 
-      logger.info('=== Начинаем операцию отправки секретов ===')
+      logger.info("\n=== Начинаем операцию отправки секретов ===")
 
       begin
         KeySloth.push(
@@ -103,9 +103,9 @@ module KeySloth
           commit_message: options[:message]
         )
 
-        logger.info('=== Операция отправки секретов завершена успешно ===')
+        logger.info("✅ Операция отправки секретов завершена успешно\n")
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка выполнения операции: #{e.message}")
+        logger.error("⛔ Ошибка выполнения операции: #{e.message}")
         exit 1
       end
     end
@@ -178,7 +178,7 @@ module KeySloth
           logger.info("\nРезервные копии не найдены")
         end
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка проверки состояния: #{e.message}")
+        logger.error("⛔ Ошибка проверки состояния: #{e.message}")
         exit 1
       end
     end
@@ -194,7 +194,7 @@ module KeySloth
     def restore(backup_path)
       setup_logger
 
-      logger.info('=== Восстанавливаем секреты из резервной копии ===')
+      logger.info("\n=== Восстанавливаем секреты из резервной копии ===")
 
       begin
         file_manager = FileManager.new(logger)
@@ -202,9 +202,9 @@ module KeySloth
         resolved_path = options[:path] || config[:local_path] || Config::DEFAULT_CONFIG[:local_path]
         file_manager.restore_from_backup(backup_path, resolved_path)
 
-        logger.info('=== Восстановление завершено успешно ===')
+        logger.info("✅ Восстановление завершено успешно\n")
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка восстановления: #{e.message}")
+        logger.error("⛔ Ошибка восстановления: #{e.message}")
         exit 1
       end
     end
@@ -223,7 +223,7 @@ module KeySloth
     def validate
       setup_logger
 
-      logger.info('=== Проверяем целостность файлов секретов ===')
+      logger.info("\n=== Проверяем целостность файлов секретов ===")
 
       begin
         file_manager = FileManager.new(logger)
@@ -266,13 +266,14 @@ module KeySloth
         logger.info("Поврежденных файлов: #{invalid_files}")
 
         if invalid_files.positive?
-          logger.error("Обнаружены поврежденные файлы! Рекомендуется восстановление из backup'а.")
+          logger.error("⛔ Обнаружены поврежденные файлы! Рекомендуется восстановление из backup'а.")
           exit 1
         else
           logger.info('Все файлы секретов прошли проверку целостности.')
+          logger.info("✅ Проверка целостности завершена успешно\n")
         end
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка проверки целостности: #{e.message}")
+        logger.error("⛔ Ошибка проверки целостности: #{e.message}")
         exit 1
       end
     end
@@ -298,7 +299,7 @@ module KeySloth
     def init
       setup_logger
 
-      logger.info('=== Инициализируем KeySloth проект ===')
+      logger.info("\n=== Инициализируем KeySloth проект ===")
 
       begin
         file_manager = FileManager.new(logger)
@@ -382,16 +383,16 @@ module KeySloth
         File.write(readme_path, readme_content)
         logger.info("Создан файл справки: #{readme_path}")
 
-        logger.info("\n=== Инициализация завершена успешно ===")
+        logger.info("\n✅ Инициализация завершена успешно\n")
         logger.info('Следующие шаги:')
         logger.info("1. Поместите ваши файлы секретов в #{secrets_path}/")
         logger.info("2. Используйте 'keysloth push' для первой отправки секретов")
         logger.info('3. Поделитесь паролем шифрования с командой')
       rescue KeySloth::KeySlothError => e
-        logger.error("Ошибка инициализации: #{e.message}")
+        logger.error("⛔ Ошибка инициализации: #{e.message}")
         exit 1
       rescue StandardError => e
-        logger.error("Неожиданная ошибка: #{e.message}")
+        logger.error("⛔ Неожиданная ошибка: #{e.message}")
         exit 1
       end
     end
