@@ -1,4 +1,4 @@
-# Test plan: Проверка работы gem KeySloth (шаг за шагом для новичка)
+# Test plan: Проверка работы gem KeySloth (шаг за шагом, как для новичка)
 
 ## Цели
 - Подтвердить, что все основные команды работают: `init`, `pull`, `push`, `status`, `validate`, `restore`, `version`, `help`.
@@ -18,7 +18,7 @@
 
 ## 1. Клонирование проекта и установка зависимостей
 ```bash
-git clone https://github.com/keysloth/keysloth.git  # если локально — просто перейдите в папку проекта
+# перейдите в папку проекта
 cd keysloth
 bundle install
 ```
@@ -28,14 +28,10 @@ bundle install
 # Тесты
 bundle exec rake spec
 
-# Линтинг
-bundle exec rake rubocop
-```
-
 ## 3. Сборка и локальная установка gem
 ```bash
 gem build keysloth.gemspec
-gem install ./keysloth-0.1.1.gem
+gem install ./keysloth-0.2.0.gem  # подставить текущую версию вместо 0.2.0
 
 # Проверка установки и базовых команд
 keysloth version
@@ -50,27 +46,8 @@ ssh -V
 ```
 
 ## 4. Подготовка тестового удалённого репозитория (SSH)
-Вариант A (GitHub через веб-интерфейс):
 - Создайте приватный репозиторий, например `keysloth-secrets-test`.
-- Выберите «Add a README» при создании, чтобы в репозитории сразу была ветка `main`.
-
-Вариант B (через локальный git и push):
-```bash
-mkdir -p ~/tmp/keysloth-secrets-remote
-cd ~/tmp/keysloth-secrets-remote
-git init
-echo "# secrets" > README.md
-git add README.md
-git commit -m "init"
-git branch -M main
-git remote add origin git@github.com:<YOUR_USER>/keysloth-secrets-test.git
-git push -u origin main
-```
-
-Проверьте доступ по SSH:
-```bash
-ssh -T git@github.com
-```
+- Выберите «Add a README» при создании, чтобы в репозитории сразу была ветка `main`
 
 ## 5. Подготовка рабочего каталога и начальной конфигурации
 ```bash
@@ -78,6 +55,7 @@ mkdir -p ~/tmp/keysloth-playground
 cd ~/tmp/keysloth-playground
 
 # Инициализация проекта под KeySloth (создаст .keyslothrc, директорию секретов, обновит .gitignore)
+# Этот и остальные шаги этого пункта ниже - делать только если репозиторий в пункте 4 до этого ни разу не создавался
 keysloth init -r git@github.com:chausovSurfStudio/keysloth-secrets-test.git -b main -d ./secrets
 
 # Проверим, что создалось
@@ -88,36 +66,7 @@ cat .gitignore
 Ожидаемо: `.keyslothrc` содержит `repo_url`, `branch`, `local_path`; в `.gitignore` добавлены `secrets/` и `.keyslothrc`.
 
 ## 6. Подготовка тестовых «секретов»
-Создадим набор файлов разных типов (произвольные расширения поддерживаются):
-```bash
-mkdir -p secrets/certificates secrets/config
-
-# JSON
-cat > secrets/config/app.json << 'JSON'
-{
-  "apiKey": "demo-123",
-  "endpoint": "https://api.example.com",
-  "featureFlags": {"newUI": true}
-}
-JSON
-
-# CER (PEM)
-cat > secrets/certificates/dev.cer << 'CER'
------BEGIN CERTIFICATE-----
-MIIBkTCB+wI...FAKE...FOR...TEST...
------END CERTIFICATE-----
-CER
-
-# P12 (минимальный валидный заголовок: первый байт 0x30)
-printf "\x30\x82\x05\x10\x02\x01\x03\x30" > secrets/certificates/dev.p12
-
-# Mobile provisioning (XML/plist признак)
-echo '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"></plist>' > secrets/dev.mobileprovisioning
-
-# Текст/произвольные бинарные
-echo 'note' > secrets/note.txt
-printf "\x00\xFF\x10\x20" > secrets/raw.bin
-```
+Создать/скопировать в заранее подготовленную папку набор необходимых "серкретов"
 
 ## 7. Первая отправка секретов (push)
 ```bash
@@ -145,15 +94,6 @@ keysloth pull \
   -p "$SECRET_PASSWORD" \
   -b main \
   -d ./secrets
-
-# Проверим содержимое
-ls -la ./secrets ./secrets/certificates
-cat ./secrets/config/app.json
-
-# Побайтная идентичность бинарных файлов (пример):
-shasum -a 256 ./secrets/certificates/dev.p12 > /tmp/hash_pull.txt
-shasum -a 256 ~/tmp/keysloth-playground_origin/certificates/dev.p12 > /tmp/hash_origin.txt || true
-diff -u /tmp/hash_origin.txt /tmp/hash_pull.txt || echo "hash mismatch (проверить исходный путь к origin)"
 ```
 
 Ожидаемо: файлы восстановлены и читаемы.
@@ -225,38 +165,7 @@ keysloth pull -p "$SECRET_PASSWORD"
 keysloth push -p "$SECRET_PASSWORD" -m "update via rc"
 ```
 
-## 15. Минимальная проверка в CI/CD (GitHub Actions пример)
-Создайте секреты репозитория: `SSH_PRIVATE_KEY`, `SECRET_PASSWORD`. Затем workflow:
-```yaml
-name: KeySloth smoke
-on: [workflow_dispatch]
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.2'
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-      - name: Install KeySloth
-        run: gem install keysloth
-      - name: Pull secrets
-        env:
-          SECRET_PASSWORD: ${{ secrets.SECRET_PASSWORD }}
-        run: |
-          keysloth pull -r git@github.com:<YOUR_USER>/keysloth-secrets-test.git -p "$SECRET_PASSWORD"
-```
-
-## 16. Завершение и очистка
+## 15. Завершение и очистка
 ```bash
 # Опционально удалить установленный gem локально
 gem uninstall keysloth -aIx
@@ -264,6 +173,7 @@ gem uninstall keysloth -aIx
 # Удалить рабочие каталоги
 rm -rf ~/tmp/keysloth-playground ~/tmp/keysloth-secrets-remote
 ```
+
 
 ## Чек-лист «что должно сработать»
 - `gem build` и `gem install` проходят без ошибок; `keysloth version`/`help` работают.
