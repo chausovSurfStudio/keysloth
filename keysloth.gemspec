@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = 'keysloth'
   spec.version = KeySloth::VERSION
   spec.authors = ['KeySloth Team']
-  spec.email = ['team@keysloth.org']
+  spec.email = ['chausov@surf.dev']
 
   spec.summary = 'Ruby gem для управления зашифрованными секретами в Git репозиториях'
   spec.description = <<~DESC
@@ -21,8 +21,8 @@ Gem::Specification.new do |spec|
 
   spec.metadata['allowed_push_host'] = 'https://rubygems.org'
   spec.metadata['homepage_uri'] = spec.homepage
-  spec.metadata['source_code_uri'] = 'https://github.com/keysloth/keysloth'
-  spec.metadata['changelog_uri'] = 'https://github.com/keysloth/keysloth/blob/main/CHANGELOG.md'
+  spec.metadata['source_code_uri'] = 'https://github.com/chausovSurfStudio/keysloth'
+  spec.metadata['changelog_uri'] = 'https://github.com/chausovSurfStudio/keysloth/blob/main/CHANGELOG.md'
   spec.metadata['rubygems_mfa_required'] = 'true'
 
   # Определяем, какие файлы включить в gem
