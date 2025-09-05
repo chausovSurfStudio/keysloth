@@ -39,11 +39,11 @@ module KeySloth
     DESC
     option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
-    option :branch, type: :string, default: 'main', aliases: '-b',
+    option :branch, type: :string, aliases: '-b',
                     desc: 'Ветка репозитория для получения секретов'
     option :password, type: :string, required: true, aliases: '-p',
                       desc: 'Пароль для расшифровки секретов'
-    option :path, type: :string, default: './secrets', aliases: '-d',
+    option :path, type: :string, aliases: '-d',
                   desc: 'Локальный путь для сохранения расшифрованных секретов'
     def pull
       setup_logger
@@ -79,11 +79,11 @@ module KeySloth
     DESC
     option :repo, type: :string, aliases: '-r',
                   desc: 'URL Git репозитория (SSH: git@github.com:user/repo.git)'
-    option :branch, type: :string, default: 'main', aliases: '-b',
+    option :branch, type: :string, aliases: '-b',
                     desc: 'Ветка репозитория для отправки секретов'
     option :password, type: :string, required: true, aliases: '-p',
                       desc: 'Пароль для шифрования секретов'
-    option :path, type: :string, default: './secrets', aliases: '-d',
+    option :path, type: :string, aliases: '-d',
                   desc: 'Локальный путь с секретами для шифрования'
     option :message, type: :string, aliases: '-m',
                      desc: 'Сообщение коммита (опционально)'

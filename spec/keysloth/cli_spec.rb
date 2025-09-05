@@ -27,20 +27,20 @@ RSpec.describe KeySloth::CLI do
       allow(KeySloth).to receive(:pull).and_return(true)
     end
 
-    it 'calls KeySloth.pull with correct parameters' do
+    it 'calls KeySloth.pull with provided or nil parameters (no defaults from CLI)' do
       cli.invoke(:pull, [], {
                    repo: repo_url,
                    password: password,
-                   branch: 'main',
-                   path: './secrets',
+                   branch: nil,
+                   path: nil,
                    config: nil
                  })
 
       expect(KeySloth).to have_received(:pull).with(
         repo_url: repo_url,
-        branch: 'main',
+        branch: nil,
         password: password,
-        local_path: './secrets',
+        local_path: nil,
         config_file: nil
       )
     end
@@ -71,7 +71,7 @@ RSpec.describe KeySloth::CLI do
 
       expect(KeySloth).to have_received(:pull).with(
         repo_url: repo_url,
-        branch: 'main',
+        branch: nil,
         password: password,
         local_path: './custom_secrets',
         config_file: nil
@@ -87,9 +87,9 @@ RSpec.describe KeySloth::CLI do
 
       expect(KeySloth).to have_received(:pull).with(
         repo_url: repo_url,
-        branch: 'main',
+        branch: nil,
         password: password,
-        local_path: './secrets',
+        local_path: nil,
         config_file: '.custom_keyslothrc'
       )
     end
@@ -126,20 +126,20 @@ RSpec.describe KeySloth::CLI do
       allow(KeySloth).to receive(:push).and_return(true)
     end
 
-    it 'calls KeySloth.push with correct parameters' do
+    it 'calls KeySloth.push with provided or nil parameters (no defaults from CLI)' do
       cli.invoke(:push, [], {
                    repo: repo_url,
                    password: password,
-                   branch: 'main',
-                   path: './secrets',
+                   branch: nil,
+                   path: nil,
                    message: nil
                  })
 
       expect(KeySloth).to have_received(:push).with(
         repo_url: repo_url,
-        branch: 'main',
+        branch: nil,
         password: password,
-        local_path: './secrets',
+        local_path: nil,
         config_file: nil,
         commit_message: nil
       )
@@ -154,9 +154,9 @@ RSpec.describe KeySloth::CLI do
 
       expect(KeySloth).to have_received(:push).with(
         repo_url: repo_url,
-        branch: 'main',
+        branch: nil,
         password: password,
-        local_path: './secrets',
+        local_path: nil,
         config_file: nil,
         commit_message: 'Custom commit message'
       )
